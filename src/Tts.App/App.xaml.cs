@@ -5,6 +5,7 @@ using Tts.App.Configuration;
 using Tts.App.HostedServices;
 using Tts.App.Services;
 using Tts.App.Services.Audio;
+using Tts.App.Services.Timing;
 using Tts.App.Services.Tray;
 using Tts.App.ViewModels;
 
@@ -26,6 +27,7 @@ public partial class App : System.Windows.Application
 				services.AddSingleton<AppPaths>();
 				services.AddSingleton<IAppSettingsStore, JsonAppSettingsStore>();
 				services.AddSingleton<IAudioCaptureService, WasapiAudioCaptureService>();
+				services.AddSingleton<ISessionTimingLogWriter, CsvSessionTimingLogWriter>();
 				services.AddSingleton<ISessionOrchestrator, SessionOrchestrator>();
 				services.AddSingleton<GlobalHotkeyService>();
 				services.AddSingleton<IGlobalHotkeyService>(serviceProvider => serviceProvider.GetRequiredService<GlobalHotkeyService>());

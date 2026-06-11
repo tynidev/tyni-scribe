@@ -55,7 +55,7 @@ Complete these checks before starting application implementation.
 | 7 | Implement first streaming transcription provider with final-text output only | `Not Started` | No | Steps 2-3, provider interfaces |
 | 8 | Add multiple built-in transcription provider selection | `Not Started` | No | Steps 6-7 |
 | 9 | Add optional text cleanup provider with raw-transcript fallback | `Not Started` | No | Final transcript flow |
-| 10 | Add temp-file cleanup and sanitized logging | `Not Started` | No | Steps 2-9 |
+| 10 | Add temp-file cleanup and sanitized logging | `In Progress` | No | Steps 2-9 |
 | 11 | Polish errors, tray status, and settings validation | `Not Started` | No | Steps 1-10 |
 
 ## Step Details
@@ -207,10 +207,16 @@ Complete? No
 
 ### 10. Temp-File Cleanup And Sanitized Logging
 
-Status: `Not Started`
+Status: `In Progress`
 
 Complete? No
 
+- Added app log path support for `%AppData%/SpeechToTextDaemon/logs`.
+- Added `CsvSessionTimingLogWriter` to create and append `%AppData%/SpeechToTextDaemon/logs/timings.csv`.
+- Added one timing CSV row per recording session when the session ends in success, cancellation, or recoverable failure.
+- Captured current available timing data: `totalSessionMs`, `recordingDurationMs`, and `captureFinalizationMs`.
+- Captured sanitized session metadata currently available: session ID, UTC start/completion timestamps, status, sanitized error category, microphone device ID, transcription provider ID, cleanup provider ID, and output provider IDs.
+- Left not-yet-implemented stage duration columns empty: `audioProcessingMs`, `transcriptionMs`, `textCleanupMs`, `clipboardOutputMs`, and `tempFileCleanupMs`.
 - Run stale temp-file cleanup on startup.
 - Delete captured and processed temp audio after success, cancellation, and failure.
 - Time end-of-session deletion as `temp-file-cleanup`.
@@ -222,6 +228,7 @@ Complete? No
 - Append exactly one CSV row per recording session when the session returns to `Idle`, including successful, canceled, and recoverable failure sessions.
 - Create the timing log directory and CSV header when the file does not exist.
 - Leave skipped stage duration fields empty instead of writing `0`.
+- Leave provider ID fields empty when that provider category was disabled or not used, such as `cleanupProviderId` when text cleanup is disabled.
 - Do not write temp file paths, transcript text, endpoint secrets, raw endpoint URLs, or audio content to the timing CSV.
 - Do not log raw audio or transcript text by default.
 - Avoid logging secrets.
@@ -258,7 +265,8 @@ Complete? No
 | Optional text cleanup provider | Step 9 | `Not Started` | No |
 | Clipboard output provider | Step 5 | `Not Started` | No |
 | Temp file cleanup | Step 10 | `Not Started` | No |
-| Sanitized file logging | Step 10 | `Not Started` | No |
+| Timing CSV logging | Step 10 | `Complete` | Yes |
+| Sanitized file logging | Step 10 | `In Progress` | No |
 
 ## Deferred Items
 

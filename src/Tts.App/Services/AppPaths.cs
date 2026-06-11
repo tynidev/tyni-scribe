@@ -13,5 +13,9 @@ public sealed class AppPaths
         "SpeechToTextDaemon",
         "audio");
 
+    public string LogDirectory => Path.Combine(AppDataDirectory, "logs");
+
+    public string TimingLogFilePath => Path.Combine(LogDirectory, "timings.csv");
+
     public string SettingsFilePath => Path.Combine(AppDataDirectory, "config.json");
 }
