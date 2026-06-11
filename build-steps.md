@@ -49,13 +49,14 @@ Complete these checks before starting application implementation.
 | 1 | Build app shell, tray lifecycle, and settings storage | `Complete` | Yes | Product and stack plan |
 | 2 | Implement explicit state machine, global hotkeys, and cancellation | `Complete` | Yes | Step 1 |
 | 3 | Implement microphone selection, recording, and level meter | `Complete` | Yes | Steps 1-2 |
-| 4 | Implement clipboard output provider | `Not Started` | No | Step 2 |
-| 5 | Implement first batch transcription provider | `Not Started` | No | Steps 2-3 |
-| 6 | Implement first streaming transcription provider with final-text output only | `Not Started` | No | Steps 2-3, provider interfaces |
-| 7 | Add multiple built-in transcription provider selection | `Not Started` | No | Steps 5-6 |
-| 8 | Add optional text cleanup provider with raw-transcript fallback | `Not Started` | No | Final transcript flow |
-| 9 | Add temp-file cleanup and sanitized logging | `Not Started` | No | Steps 2-8 |
-| 10 | Polish errors, tray status, and settings validation | `Not Started` | No | Steps 1-9 |
+| 4 | Add completed-file audio processing provider pipeline | `Not Started` | No | Step 3 |
+| 5 | Implement clipboard output provider | `Not Started` | No | Step 2 |
+| 6 | Implement first batch transcription provider | `Not Started` | No | Steps 3-4 |
+| 7 | Implement first streaming transcription provider with final-text output only | `Not Started` | No | Steps 2-3, provider interfaces |
+| 8 | Add multiple built-in transcription provider selection | `Not Started` | No | Steps 6-7 |
+| 9 | Add optional text cleanup provider with raw-transcript fallback | `Not Started` | No | Final transcript flow |
+| 10 | Add temp-file cleanup and sanitized logging | `Not Started` | No | Steps 2-9 |
+| 11 | Polish errors, tray status, and settings validation | `Not Started` | No | Steps 1-10 |
 
 ## Step Details
 
@@ -80,6 +81,7 @@ Complete? Yes
 
 - Added the explicit states: `Idle`, `Recording`, `Processing`, `Outputting`, and `Error`.
 - Added a session orchestrator as the only owner of app state transitions.
+- Future workflow work should record sanitized stage timings through the orchestrator, using the names from `plan.md`.
 - Registered global Start/Stop and Cancel hotkeys through Win32 `RegisterHotKey` on the WPF UI thread.
 - Start/Stop moves from `Idle` to `Recording`, and from `Recording` to `Processing`.
 - Start/Stop during `Processing` or `Outputting` reports the app as busy.
@@ -101,16 +103,39 @@ Complete? Yes
 - Wrote active-session recordings to app-specific temp WAV files under `%TEMP%/SpeechToTextDaemon/audio`.
 - Deleted the placeholder temp WAV after the current no-provider processing placeholder completes, and on cancellation or startup failure paths.
 - Added an explicit settings-window input level meter using the selected microphone; preview capture starts only when the user starts the meter, while active recordings also publish level data.
-- Added `AudioChunkCaptured` events carrying copied PCM chunks plus capture format metadata so Step 6 streaming providers can attach without changing the WASAPI callback path.
+- Added `AudioChunkCaptured` events carrying copied PCM chunks plus capture format metadata so Step 7 streaming providers can attach without changing the WASAPI callback path.
+- Future capture finalization should be timed as `capture-finalization`: Stop requested while recording through completed WAV flush/close and readiness for audio processing.
 
 Future-step notes:
 
-- Step 5 batch transcription should consume the `AudioRecordingResult.FilePath` before `SessionOrchestrator` ends the active session, then keep the existing delete-after-session behavior.
-- Step 6 streaming transcription can subscribe to `IAudioCaptureService.AudioChunkCaptured` during recording; the event is raised only for recording sessions, not idle level-meter preview sessions.
-- Step 9 stale temp-file cleanup should target `%TEMP%/SpeechToTextDaemon/audio` for orphaned `recording-*.wav` files left by crashes or forced shutdowns.
+- Step 4 audio processing should consume the `AudioRecordingResult.FilePath` before `SessionOrchestrator` ends the active session and return the file path that Step 6 batch transcription should consume.
+- Step 7 streaming transcription can subscribe to `IAudioCaptureService.AudioChunkCaptured` during recording; the event is raised only for recording sessions, not idle level-meter preview sessions.
+- Step 10 stale temp-file cleanup should target `%TEMP%/SpeechToTextDaemon/audio` for orphaned `recording-*.wav` files left by crashes or forced shutdowns.
 - Idle level metering is intentionally explicit so the app does not keep the microphone open continuously while idle.
 
-### 4. Clipboard Output Provider
+### 4. Completed-File Audio Processing Provider Pipeline
+
+Status: `Not Started`
+
+Complete? No
+
+- Define a small audio processing provider interface.
+- Start with a no-op provider that returns the original completed audio file unchanged.
+- Time this stage as `audio-processing`, including no-op processors.
+- Accept a completed captured audio file and return the audio file that downstream batch transcription should use.
+- Allow processors to write a new temporary audio file for normalization, gain changes, mono/stereo detection or conversion, silence trimming, and format conversion.
+- Track whether the returned file is original or processor-created so cleanup can delete every temp file safely without deleting something owned elsewhere.
+- Keep streaming chunk handling separate for now; first-build audio processing is completed-file processing only.
+- Preserve privacy rules: do not log raw audio, file contents, or user speech.
+- Surface recoverable processing failures and return to `Idle`, unless a selected processor explicitly supports fallback to the original captured file.
+
+Future-step notes:
+
+- Step 6 batch transcription should receive the processed audio file path, not always the original capture path.
+- Step 10 temp-file cleanup should include processor-created temp files as well as original capture files.
+- Later provider selection should expose the audio processor separately from transcription providers so users can combine a processor with any compatible batch transcription provider.
+
+### 5. Clipboard Output Provider
 
 Status: `Not Started`
 
@@ -118,11 +143,12 @@ Complete? No
 
 - Define a small output provider interface.
 - Add clipboard output as the first provider.
+- Time clipboard writes as `clipboard-output`.
 - Send only final text to output providers.
 - Handle clipboard failures by notifying the user and keeping the transcript available for retry or dismissal.
 - Leave room for additional output destinations without changing the orchestrator.
 
-### 5. First Batch Transcription Provider
+### 6. First Batch Transcription Provider
 
 Status: `Not Started`
 
@@ -131,12 +157,13 @@ Complete? No
 - Define the batch transcription provider interface.
 - Add provider metadata: `id`, `displayName`, `transcriptionMode`, and `requiresEndpoint`.
 - Implement an initial batch provider, preferably a whisper.cpp adapter.
-- Pass the completed temp audio file to the provider.
+- Pass the processed temp audio file to the provider.
+- Time provider work as `transcription`.
 - Return final transcript text to the orchestrator.
 - Support cancellation and timeout behavior.
 - Delete temp files after success, cancellation, or failure.
 
-### 6. First Streaming Transcription Provider
+### 7. First Streaming Transcription Provider
 
 Status: `Not Started`
 
@@ -149,20 +176,21 @@ Complete? No
 - Return final transcript text only after recording stops.
 - Do not output partial streaming text in the first build.
 
-### 7. Built-In Provider Selection
+### 8. Built-In Provider Selection
 
 Status: `Not Started`
 
 Complete? No
 
 - Add multiple built-in transcription provider registration.
+- Add audio processing provider selection in settings.
 - Add transcription provider selection in settings.
 - Show only metadata needed for first routing and settings decisions.
 - Support batch and streaming providers behind small interfaces.
 - Clearly label providers that send audio or text to a remote endpoint.
 - Apply provider changes only when the app is idle or to the next session.
 
-### 8. Optional Text Cleanup Provider
+### 9. Optional Text Cleanup Provider
 
 Status: `Not Started`
 
@@ -173,30 +201,38 @@ Complete? No
 - Add cleanup enable/disable setting.
 - Add cleanup prompt setting.
 - Run cleanup only after recording stops and a final transcript exists.
+- Time this LLM/no-op text transformation stage as `text-cleanup`.
 - Use the raw transcript if cleanup fails or times out.
 - Add tray action for enabling or disabling cleanup.
 
-### 9. Temp-File Cleanup And Sanitized Logging
+### 10. Temp-File Cleanup And Sanitized Logging
 
 Status: `Not Started`
 
 Complete? No
 
 - Run stale temp-file cleanup on startup.
-- Delete temp audio after success, cancellation, and failure.
+- Delete captured and processed temp audio after success, cancellation, and failure.
+- Time end-of-session deletion as `temp-file-cleanup`.
 - Retry cleanup on next app start when deletion fails.
 - Add Serilog rolling file logs.
-- Log app version, OS version, state transitions, provider IDs, endpoint type, durations, and sanitized errors.
+- Log app version, OS version, state transitions, provider IDs, endpoint type, total session duration, stage timings, and sanitized errors.
+- Use the stage names from `plan.md`: `capture-finalization`, `audio-processing`, `transcription`, `text-cleanup`, `clipboard-output`, and `temp-file-cleanup`.
+- Write stage timing rows to `%AppData%/SpeechToTextDaemon/logs/timings.csv`.
+- Append exactly one CSV row per recording session when the session returns to `Idle`, including successful, canceled, and recoverable failure sessions.
+- Create the timing log directory and CSV header when the file does not exist.
+- Leave skipped stage duration fields empty instead of writing `0`.
+- Do not write temp file paths, transcript text, endpoint secrets, raw endpoint URLs, or audio content to the timing CSV.
 - Do not log raw audio or transcript text by default.
 - Avoid logging secrets.
 
-### 10. Error Handling, Tray Status, And Settings Polish
+### 11. Error Handling, Tray Status, And Settings Polish
 
 Status: `Not Started`
 
 Complete? No
 
-- Show recoverable microphone, provider, hotkey, transcription, cleanup, clipboard, and temp-file errors.
+- Show recoverable microphone, audio processing, provider, hotkey, transcription, cleanup, clipboard, and temp-file errors.
 - Return to `Idle` after recoverable failures when appropriate.
 - Show tray status for `Idle`, `Recording`, `Processing`, `Outputting`, and `Error`.
 - Validate hotkey conflicts and keep previous bindings when new bindings fail.
@@ -209,19 +245,20 @@ Complete? No
 | Requirement | Covered By | Status | Complete? |
 | --- | --- | --- | --- |
 | Windows background app with tray lifecycle | Step 1 | `Complete` | Yes |
-| Settings window | Steps 1, 7, 8, 10 | `In Progress` | No |
+| Settings window | Steps 1, 8, 9, 11 | `In Progress` | No |
 | Global Start/Stop hotkey | Step 2 | `Complete` | Yes |
 | Global Cancel hotkey | Step 2 | `Complete` | Yes |
 | Microphone selection | Step 3 | `Complete` | Yes |
 | Microphone level meter | Step 3 | `Complete` | Yes |
+| Completed-file audio processing provider pipeline | Step 4 | `Not Started` | No |
 | Explicit state machine | Step 2 | `Complete` | Yes |
-| At least one batch transcription provider | Step 5 | `Not Started` | No |
-| At least one streaming transcription provider | Step 6 | `Not Started` | No |
-| Multiple built-in transcription provider selection | Step 7 | `Not Started` | No |
-| Optional text cleanup provider | Step 8 | `Not Started` | No |
-| Clipboard output provider | Step 4 | `Not Started` | No |
-| Temp file cleanup | Step 9 | `Not Started` | No |
-| Sanitized file logging | Step 9 | `Not Started` | No |
+| At least one batch transcription provider | Step 6 | `Not Started` | No |
+| At least one streaming transcription provider | Step 7 | `Not Started` | No |
+| Multiple built-in transcription provider selection | Step 8 | `Not Started` | No |
+| Optional text cleanup provider | Step 9 | `Not Started` | No |
+| Clipboard output provider | Step 5 | `Not Started` | No |
+| Temp file cleanup | Step 10 | `Not Started` | No |
+| Sanitized file logging | Step 10 | `Not Started` | No |
 
 ## Deferred Items
 
