@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using Tts.App.Services;
+using Tts.App.Services.Transcription;
 
 namespace Tts.App.Configuration;
 
@@ -101,6 +102,28 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
         settings.SelectedTranscriptionProviderId = string.IsNullOrWhiteSpace(settings.SelectedTranscriptionProviderId)
             ? "whisper-cpp-local"
             : settings.SelectedTranscriptionProviderId;
+        settings.SelectedAudioProcessorProviderId = string.IsNullOrWhiteSpace(settings.SelectedAudioProcessorProviderId)
+            ? "noop"
+            : settings.SelectedAudioProcessorProviderId;
+        settings.Transcription ??= new TranscriptionSettings();
+        settings.Transcription.WhisperCppModelId = string.IsNullOrWhiteSpace(settings.Transcription.WhisperCppModelId)
+            ? WhisperCppModelCatalog.TinyEnglishModelId
+            : settings.Transcription.WhisperCppModelId;
+        settings.Transcription.WhisperCppModelId = WhisperCppModelCatalog.Models.Any(model => model.Id.Equals(settings.Transcription.WhisperCppModelId, StringComparison.OrdinalIgnoreCase))
+            ? settings.Transcription.WhisperCppModelId
+            : WhisperCppModelCatalog.TinyEnglishModelId;
+        settings.Transcription.WhisperCppExecutablePathOverride = string.IsNullOrWhiteSpace(settings.Transcription.WhisperCppExecutablePathOverride)
+            ? null
+            : settings.Transcription.WhisperCppExecutablePathOverride;
+        settings.Transcription.WhisperModelPathOverride = string.IsNullOrWhiteSpace(settings.Transcription.WhisperModelPathOverride)
+            ? null
+            : settings.Transcription.WhisperModelPathOverride;
+        settings.Transcription.Language = string.IsNullOrWhiteSpace(settings.Transcription.Language)
+            ? "en"
+            : settings.Transcription.Language;
+        settings.Transcription.TimeoutSeconds = settings.Transcription.TimeoutSeconds <= 0
+            ? 600
+            : settings.Transcription.TimeoutSeconds;
         settings.Cleanup ??= new CleanupSettings();
         settings.EnabledOutputProviderIds ??= new List<string> { "clipboard" };
         settings.SettingsWindow ??= new SettingsWindowPlacement();

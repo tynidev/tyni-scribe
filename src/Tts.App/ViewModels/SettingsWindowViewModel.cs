@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using Tts.App.Configuration;
 using Tts.App.Services;
 using Tts.App.Services.Audio;
+using Tts.App.Services.Transcription;
 
 namespace Tts.App.ViewModels;
 
@@ -48,6 +49,18 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
 
     [ObservableProperty]
     private string _selectedTranscriptionProviderId = string.Empty;
+
+    [ObservableProperty]
+    private string _selectedAudioProcessorProviderId = string.Empty;
+
+    [ObservableProperty]
+    private string _selectedWhisperCppModelId = string.Empty;
+
+    [ObservableProperty]
+    private string _transcriptionLanguage = string.Empty;
+
+    [ObservableProperty]
+    private int _transcriptionTimeoutSeconds;
 
     [ObservableProperty]
     private bool _isCleanupEnabled;
@@ -98,6 +111,14 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
 
     public ObservableCollection<MicrophoneDeviceOption> MicrophoneDevices { get; } = new();
 
+    public ObservableCollection<TranscriptionModelOption> TranscriptionModels { get; } = new()
+    {
+        new TranscriptionModelOption(WhisperCppModelCatalog.TinyEnglishModelId, "Tiny English (fastest)"),
+        new TranscriptionModelOption(WhisperCppModelCatalog.BaseEnglishModelId, "Base English (balanced)"),
+        new TranscriptionModelOption(WhisperCppModelCatalog.SmallEnglishModelId, "Small English (better accuracy)"),
+        new TranscriptionModelOption(WhisperCppModelCatalog.LargeV3TurboModelId, "Large v3 Turbo (best local quality)")
+    };
+
     public string ConfigPath => _settingsStore.SettingsFilePath;
 
     public IAsyncRelayCommand LoadCommand { get; }
@@ -123,6 +144,12 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         StartStopHotkey = _settings.StartStopHotkey.Gesture;
         CancelHotkey = _settings.CancelHotkey.Gesture;
         SelectedTranscriptionProviderId = _settings.SelectedTranscriptionProviderId;
+        SelectedAudioProcessorProviderId = _settings.SelectedAudioProcessorProviderId;
+        SelectedWhisperCppModelId = TranscriptionModels.Any(model => model.Id == _settings.Transcription.WhisperCppModelId)
+            ? _settings.Transcription.WhisperCppModelId
+            : WhisperCppModelCatalog.TinyEnglishModelId;
+        TranscriptionLanguage = _settings.Transcription.Language;
+        TranscriptionTimeoutSeconds = _settings.Transcription.TimeoutSeconds;
         IsCleanupEnabled = _settings.Cleanup.IsEnabled;
         CleanupPrompt = _settings.Cleanup.Prompt;
         EnabledOutputProviders = string.Join(", ", _settings.EnabledOutputProviderIds);
@@ -255,6 +282,15 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
             StartStopHotkey = HotkeySettings.FromGesture(StartStopHotkey.Trim()),
             CancelHotkey = HotkeySettings.FromGesture(CancelHotkey.Trim()),
             SelectedTranscriptionProviderId = SelectedTranscriptionProviderId.Trim(),
+            SelectedAudioProcessorProviderId = SelectedAudioProcessorProviderId.Trim(),
+            Transcription = new TranscriptionSettings
+            {
+                WhisperCppModelId = SelectedWhisperCppModelId.Trim(),
+                WhisperCppExecutablePathOverride = _settings.Transcription.WhisperCppExecutablePathOverride,
+                WhisperModelPathOverride = _settings.Transcription.WhisperModelPathOverride,
+                Language = TranscriptionLanguage.Trim(),
+                TimeoutSeconds = TranscriptionTimeoutSeconds
+            },
             Cleanup = new CleanupSettings
             {
                 IsEnabled = IsCleanupEnabled,

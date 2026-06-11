@@ -14,11 +14,40 @@ public sealed class AppSettings
 
     public string SelectedTranscriptionProviderId { get; set; } = "whisper-cpp-local";
 
+    public string SelectedAudioProcessorProviderId { get; set; } = "noop";
+
+    public TranscriptionSettings Transcription { get; set; } = new();
+
     public CleanupSettings Cleanup { get; set; } = new();
 
     public List<string> EnabledOutputProviderIds { get; set; } = new() { "clipboard" };
 
     public SettingsWindowPlacement SettingsWindow { get; set; } = new();
+}
+
+public sealed class TranscriptionSettings
+{
+    public string WhisperCppModelId { get; set; } = "tiny-en";
+
+    public string? WhisperCppExecutablePathOverride { get; set; }
+
+    public string? WhisperModelPathOverride { get; set; }
+
+    public string Language { get; set; } = "en";
+
+    public int TimeoutSeconds { get; set; } = 600;
+
+    public TranscriptionSettings Copy()
+    {
+        return new TranscriptionSettings
+        {
+            WhisperCppModelId = WhisperCppModelId,
+            WhisperCppExecutablePathOverride = WhisperCppExecutablePathOverride,
+            WhisperModelPathOverride = WhisperModelPathOverride,
+            Language = Language,
+            TimeoutSeconds = TimeoutSeconds
+        };
+    }
 }
 
 public sealed class HotkeySettings

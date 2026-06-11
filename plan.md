@@ -146,6 +146,7 @@ Responsibilities:
 - Show microphone device selection.
 - Show microphone level meter.
 - Show transcription provider selection.
+- Show transcription-provider settings in product terms, such as local model/profile and language, not internal executable paths.
 - Show output provider selection.
 - Show hotkey settings.
 - Show cleanup prompt settings.
@@ -279,6 +280,8 @@ requiresEndpoint: boolean
 
 Add richer metadata only when the UI needs it, such as language support, timestamp support, GPU requirements, or maximum audio duration.
 
+Provider-specific settings should be owned by the provider and exposed in product terms. For example, a local whisper.cpp provider can expose a friendly model/profile selection and language setting, while the executable path and raw model file paths remain app-managed deployment details. Advanced path overrides may exist in configuration for development or portable installs, but they should not be part of the normal settings UI. The first local whisper.cpp model catalog should include tiny/base/small English models plus Large v3 Turbo, with model IDs mapped internally to app-managed model files.
+
 ## Configuration
 
 Use one typed configuration file with defaults.
@@ -290,7 +293,7 @@ Recommended settings:
 - Cancel hotkey.
 - Selected transcription provider.
 - Selected audio processing provider.
-- Transcription provider endpoint, when needed.
+- Transcription provider settings, such as local model/profile, language, timeout, or remote endpoint type when needed.
 - Enable text cleanup.
 - Selected cleanup provider.
 - Cleanup provider endpoint, when needed.

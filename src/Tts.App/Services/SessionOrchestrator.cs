@@ -2,7 +2,10 @@ using System.Diagnostics;
 using System.IO;
 using Tts.App.Configuration;
 using Tts.App.Services.Audio;
+using Tts.App.Services.AudioProcessing;
+using Tts.App.Services.Output;
 using Tts.App.Services.Timing;
+using Tts.App.Services.Transcription;
 
 namespace Tts.App.Services;
 
@@ -10,19 +13,30 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
 {
     private readonly IAppSettingsStore _settingsStore;
     private readonly IAudioCaptureService _audioCaptureService;
+    private readonly IReadOnlyDictionary<string, IAudioProcessingProvider> _audioProcessingProviders;
+    private readonly IReadOnlyDictionary<string, IBatchTranscriptionProvider> _batchTranscriptionProviders;
+    private readonly IReadOnlyDictionary<string, IOutputProvider> _outputProviders;
     private readonly ISessionTimingLogWriter _timingLogWriter;
     private readonly SemaphoreSlim _transitionLock = new(1, 1);
     private CancellationTokenSource? _activeSessionCancellation;
     private AudioRecordingResult? _completedRecording;
+    private string? _processedAudioFilePath;
     private ActiveSessionTiming? _activeSessionTiming;
+    private PendingOutput? _pendingOutput;
 
     public SessionOrchestrator(
         IAppSettingsStore settingsStore,
         IAudioCaptureService audioCaptureService,
+        IEnumerable<IAudioProcessingProvider> audioProcessingProviders,
+        IEnumerable<IBatchTranscriptionProvider> batchTranscriptionProviders,
+        IEnumerable<IOutputProvider> outputProviders,
         ISessionTimingLogWriter timingLogWriter)
     {
         _settingsStore = settingsStore;
         _audioCaptureService = audioCaptureService;
+        _audioProcessingProviders = audioProcessingProviders.ToDictionary(provider => provider.Metadata.Id, StringComparer.OrdinalIgnoreCase);
+        _batchTranscriptionProviders = batchTranscriptionProviders.ToDictionary(provider => provider.Metadata.Id, StringComparer.OrdinalIgnoreCase);
+        _outputProviders = outputProviders.ToDictionary(provider => provider.Id, StringComparer.OrdinalIgnoreCase);
         _timingLogWriter = timingLogWriter;
     }
 
@@ -33,6 +47,8 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
     public string StatusMessage { get; private set; } = "Ready";
 
     public SessionSnapshot? ActiveSessionSnapshot { get; private set; }
+
+    public bool HasPendingOutput => _pendingOutput is not null;
 
     public async Task HandleStartStopAsync(CancellationToken cancellationToken = default)
     {
@@ -57,6 +73,12 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
                     PublishStatus($"Busy: current session is {State}.");
                     return;
                 case AppSessionState.Error:
+                    if (_pendingOutput is not null)
+                    {
+                        await DismissPendingOutputOnLockAsync("Output dismissed. Ready.");
+                        return;
+                    }
+
                     await EndActiveSessionAsync();
                     TransitionTo(AppSessionState.Idle, "Recovered from the last error. Press Start/Stop again to record.");
                     return;
@@ -69,7 +91,7 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
             _transitionLock.Release();
         }
 
-        await CompleteProcessingPlaceholderAsync(cancellationToken);
+        await CompleteProcessingAsync(cancellationToken);
     }
 
     public async Task CancelAsync(CancellationToken cancellationToken = default)
@@ -99,10 +121,87 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
                     PublishStatus("Busy: output is already in progress.");
                     return;
                 case AppSessionState.Error:
+                    if (_pendingOutput is not null)
+                    {
+                        await DismissPendingOutputOnLockAsync("Output dismissed.");
+                        return;
+                    }
+
                     await EndActiveSessionAsync();
                     TransitionTo(AppSessionState.Idle, "Error dismissed.");
                     return;
             }
+        }
+        finally
+        {
+            _transitionLock.Release();
+        }
+    }
+
+    public async Task RetryOutputAsync(CancellationToken cancellationToken = default)
+    {
+        PendingOutput pendingOutput;
+
+        await _transitionLock.WaitAsync(cancellationToken);
+
+        try
+        {
+            if (_pendingOutput is null)
+            {
+                PublishStatus("No pending output to retry.");
+                return;
+            }
+
+            if (State != AppSessionState.Error)
+            {
+                PublishStatus($"Busy: current session is {State}.");
+                return;
+            }
+
+            pendingOutput = _pendingOutput;
+            TransitionTo(AppSessionState.Outputting, "Retrying output.");
+        }
+        finally
+        {
+            _transitionLock.Release();
+        }
+
+        var result = await WriteEnabledOutputProvidersAsync(pendingOutput.Text, pendingOutput.Snapshot, pendingOutput.SessionId, cancellationToken);
+
+        await _transitionLock.WaitAsync(CancellationToken.None);
+
+        try
+        {
+            if (!result.Succeeded)
+            {
+                _pendingOutput = pendingOutput with { ErrorCategory = result.ErrorCategory ?? "output-provider" };
+                TransitionTo(AppSessionState.Error, result.StatusMessage);
+                return;
+            }
+
+            _pendingOutput = null;
+            await EndActiveSessionAsync("success");
+            TransitionTo(AppSessionState.Idle, result.StatusMessage);
+        }
+        finally
+        {
+            _transitionLock.Release();
+        }
+    }
+
+    public async Task DismissPendingOutputAsync(CancellationToken cancellationToken = default)
+    {
+        await _transitionLock.WaitAsync(cancellationToken);
+
+        try
+        {
+            if (_pendingOutput is null)
+            {
+                PublishStatus("No pending output to dismiss.");
+                return;
+            }
+
+            await DismissPendingOutputOnLockAsync("Output dismissed.");
         }
         finally
         {
@@ -158,9 +257,13 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
         return true;
     }
 
-    private async Task CompleteProcessingPlaceholderAsync(CancellationToken cancellationToken)
+    private async Task CompleteProcessingAsync(CancellationToken cancellationToken)
     {
         await Task.Yield();
+
+        AudioRecordingResult recording;
+        SessionSnapshot snapshot;
+        CancellationToken sessionCancellationToken;
 
         await _transitionLock.WaitAsync(cancellationToken);
 
@@ -178,14 +281,311 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
                 return;
             }
 
-            var duration = _completedRecording?.Duration.TotalSeconds ?? 0;
-            await EndActiveSessionAsync("success");
-            TransitionTo(AppSessionState.Idle, $"Recording stopped. Captured {duration:0.0} seconds of audio; transcription attaches in the next steps.");
+            if (_completedRecording is null || ActiveSessionSnapshot is null || _activeSessionCancellation is null)
+            {
+                await EndActiveSessionAsync("failure", "transcription");
+                TransitionTo(AppSessionState.Error, "Recording was not available for transcription.");
+                return;
+            }
+
+            recording = _completedRecording;
+            snapshot = ActiveSessionSnapshot;
+            sessionCancellationToken = _activeSessionCancellation.Token;
         }
         finally
         {
             _transitionLock.Release();
         }
+
+        await RunBatchTranscriptionAsync(recording, snapshot, sessionCancellationToken);
+    }
+
+    private async Task RunBatchTranscriptionAsync(
+        AudioRecordingResult recording,
+        SessionSnapshot snapshot,
+        CancellationToken sessionCancellationToken)
+    {
+        var processedAudio = await ProcessCompletedAudioAsync(recording, snapshot, sessionCancellationToken);
+
+        if (processedAudio is null)
+        {
+            return;
+        }
+
+        if (!_batchTranscriptionProviders.TryGetValue(snapshot.TranscriptionProviderId, out var provider))
+        {
+            await FailProcessingAsync($"Transcription provider '{snapshot.TranscriptionProviderId}' is not available.", "transcription-provider");
+            return;
+        }
+
+        var transcriptionStopwatch = Stopwatch.StartNew();
+        BatchTranscriptionResult transcriptionResult;
+
+        try
+        {
+            transcriptionResult = await provider.TranscribeAsync(
+                new BatchTranscriptionRequest(
+                    processedAudio.FilePath,
+                    recording.Format,
+                    recording.Duration,
+                    snapshot.TranscriptionSettings),
+                sessionCancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            transcriptionStopwatch.Stop();
+            await CompleteCanceledProcessingAsync();
+            return;
+        }
+        catch (TimeoutException exception)
+        {
+            transcriptionStopwatch.Stop();
+            await FailProcessingAsync(exception.Message, "transcription-timeout", transcriptionStopwatch.Elapsed);
+            return;
+        }
+        catch (Exception exception)
+        {
+            transcriptionStopwatch.Stop();
+            await FailProcessingAsync(exception.Message, "transcription", transcriptionStopwatch.Elapsed);
+            return;
+        }
+
+        transcriptionStopwatch.Stop();
+
+        await _transitionLock.WaitAsync(CancellationToken.None);
+
+        try
+        {
+            if (State != AppSessionState.Processing)
+            {
+                return;
+            }
+
+            _activeSessionTiming?.CompleteTranscription(transcriptionStopwatch.Elapsed);
+
+            if (string.IsNullOrWhiteSpace(transcriptionResult.Text))
+            {
+                await EndActiveSessionAsync("success");
+                TransitionTo(AppSessionState.Idle, "Transcription produced no text.");
+                return;
+            }
+
+            await TryWriteFinalOutputAsync(transcriptionResult.Text, CancellationToken.None);
+        }
+        finally
+        {
+            _transitionLock.Release();
+        }
+    }
+
+    private async Task<AudioProcessingResult?> ProcessCompletedAudioAsync(
+        AudioRecordingResult recording,
+        SessionSnapshot snapshot,
+        CancellationToken sessionCancellationToken)
+    {
+        if (!_audioProcessingProviders.TryGetValue(snapshot.AudioProcessorProviderId, out var provider))
+        {
+            await FailProcessingAsync($"Audio processor '{snapshot.AudioProcessorProviderId}' is not available.", "audio-processing-provider");
+            return null;
+        }
+
+        var processingStopwatch = Stopwatch.StartNew();
+
+        try
+        {
+            var result = await provider.ProcessAsync(
+                new AudioProcessingRequest(recording.FilePath, recording.Format, recording.Duration),
+                sessionCancellationToken);
+
+            processingStopwatch.Stop();
+
+            await _transitionLock.WaitAsync(CancellationToken.None);
+
+            try
+            {
+                if (State != AppSessionState.Processing)
+                {
+                    return null;
+                }
+
+                _activeSessionTiming?.CompleteAudioProcessing(processingStopwatch.Elapsed);
+
+                if (!result.IsOriginalFile)
+                {
+                    _processedAudioFilePath = result.FilePath;
+                }
+            }
+            finally
+            {
+                _transitionLock.Release();
+            }
+
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            processingStopwatch.Stop();
+            await CompleteCanceledProcessingAsync();
+            return null;
+        }
+        catch (Exception exception)
+        {
+            processingStopwatch.Stop();
+            await FailProcessingAsync(exception.Message, "audio-processing", audioProcessingDuration: processingStopwatch.Elapsed);
+            return null;
+        }
+    }
+
+    private async Task CompleteCanceledProcessingAsync()
+    {
+        await _transitionLock.WaitAsync(CancellationToken.None);
+
+        try
+        {
+            if (State != AppSessionState.Processing)
+            {
+                return;
+            }
+
+            await EndActiveSessionAsync("canceled");
+            TransitionTo(AppSessionState.Idle, "Session canceled.");
+        }
+        finally
+        {
+            _transitionLock.Release();
+        }
+    }
+
+    private async Task FailProcessingAsync(
+        string statusMessage,
+        string errorCategory,
+        TimeSpan? transcriptionDuration = null,
+        TimeSpan? audioProcessingDuration = null)
+    {
+        await _transitionLock.WaitAsync(CancellationToken.None);
+
+        try
+        {
+            if (State != AppSessionState.Processing)
+            {
+                return;
+            }
+
+            if (transcriptionDuration is not null)
+            {
+                _activeSessionTiming?.CompleteTranscription(transcriptionDuration.Value);
+            }
+
+            if (audioProcessingDuration is not null)
+            {
+                _activeSessionTiming?.CompleteAudioProcessing(audioProcessingDuration.Value);
+            }
+
+            await EndActiveSessionAsync("failure", errorCategory);
+            TransitionTo(AppSessionState.Error, statusMessage);
+        }
+        finally
+        {
+            _transitionLock.Release();
+        }
+    }
+
+    private async Task<bool> TryWriteFinalOutputAsync(string finalText, CancellationToken cancellationToken)
+    {
+        if (ActiveSessionSnapshot is null || _activeSessionTiming is null)
+        {
+            return false;
+        }
+
+        var snapshot = ActiveSessionSnapshot;
+        var sessionId = _activeSessionTiming.SessionId;
+
+        TransitionTo(AppSessionState.Outputting, "Writing output.");
+
+        var result = await WriteEnabledOutputProvidersAsync(finalText, snapshot, sessionId, cancellationToken);
+
+        if (!result.Succeeded)
+        {
+            DeleteCompletedRecording();
+            _pendingOutput = new PendingOutput(finalText, snapshot, sessionId, result.ErrorCategory ?? "output-provider");
+            TransitionTo(AppSessionState.Error, result.StatusMessage);
+            return false;
+        }
+
+        await EndActiveSessionAsync("success");
+        TransitionTo(AppSessionState.Idle, result.StatusMessage);
+        return true;
+    }
+
+    private async Task<OutputWriteResult> WriteEnabledOutputProvidersAsync(
+        string finalText,
+        SessionSnapshot snapshot,
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        var enabledProviderIds = snapshot.EnabledOutputProviderIds
+            .Where(providerId => !string.IsNullOrWhiteSpace(providerId))
+            .Select(providerId => providerId.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (enabledProviderIds.Length == 0)
+        {
+            return OutputWriteResult.Success("No output providers are enabled.");
+        }
+
+        foreach (var providerId in enabledProviderIds)
+        {
+            if (!_outputProviders.TryGetValue(providerId, out var provider))
+            {
+                return OutputWriteResult.Failure($"Output provider '{providerId}' is not available.", "output-provider");
+            }
+
+            var outputStopwatch = Stopwatch.StartNew();
+
+            try
+            {
+                await provider.WriteAsync(finalText, new OutputProviderContext(sessionId), cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                outputStopwatch.Stop();
+                RecordOutputDuration(provider.Id, outputStopwatch.Elapsed);
+                return OutputWriteResult.Failure("Output was canceled.", "output-canceled");
+            }
+            catch (Exception exception)
+            {
+                outputStopwatch.Stop();
+                RecordOutputDuration(provider.Id, outputStopwatch.Elapsed);
+
+                var errorCategory = provider.Id.Equals(ClipboardOutputProvider.ProviderId, StringComparison.OrdinalIgnoreCase)
+                    ? "clipboard-output"
+                    : "output-provider";
+
+                return OutputWriteResult.Failure($"Could not write output through {provider.DisplayName}: {exception.Message}", errorCategory);
+            }
+
+            outputStopwatch.Stop();
+            RecordOutputDuration(provider.Id, outputStopwatch.Elapsed);
+        }
+
+        return OutputWriteResult.Success("Output copied to clipboard.");
+    }
+
+    private void RecordOutputDuration(string providerId, TimeSpan duration)
+    {
+        if (providerId.Equals(ClipboardOutputProvider.ProviderId, StringComparison.OrdinalIgnoreCase))
+        {
+            _activeSessionTiming?.AddClipboardOutputDuration(duration);
+        }
+    }
+
+    private async Task DismissPendingOutputOnLockAsync(string statusMessage)
+    {
+        var errorCategory = _pendingOutput?.ErrorCategory ?? "clipboard-output";
+        _pendingOutput = null;
+        await EndActiveSessionAsync("failure", errorCategory);
+        TransitionTo(AppSessionState.Idle, statusMessage);
     }
 
     private async Task EndActiveSessionAsync(string? status = null, string? errorCategory = null)
@@ -211,6 +611,8 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
 
     private void DeleteCompletedRecording()
     {
+        DeleteProcessedRecording();
+
         if (_completedRecording is null)
         {
             return;
@@ -232,6 +634,32 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
         finally
         {
             _completedRecording = null;
+        }
+    }
+
+    private void DeleteProcessedRecording()
+    {
+        if (string.IsNullOrWhiteSpace(_processedAudioFilePath))
+        {
+            return;
+        }
+
+        try
+        {
+            if (File.Exists(_processedAudioFilePath))
+            {
+                File.Delete(_processedAudioFilePath);
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+        finally
+        {
+            _processedAudioFilePath = null;
         }
     }
 
@@ -271,6 +699,8 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
         return new SessionSnapshot(
             settings.SelectedMicrophoneDeviceId,
             settings.SelectedTranscriptionProviderId,
+            settings.SelectedAudioProcessorProviderId,
+            settings.Transcription.Copy(),
             settings.EnabledOutputProviderIds.ToArray(),
             settings.Cleanup.IsEnabled,
             settings.Cleanup.ProviderId,
@@ -297,6 +727,12 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
         public TimeSpan? RecordingDuration { get; private set; }
 
         public TimeSpan? CaptureFinalizationDuration { get; private set; }
+
+        public TimeSpan? AudioProcessingDuration { get; private set; }
+
+        public TimeSpan? TranscriptionDuration { get; private set; }
+
+        public TimeSpan? ClipboardOutputDuration { get; private set; }
 
         public void StartRecordingDuration()
         {
@@ -325,6 +761,23 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
             CaptureFinalizationDuration = captureFinalizationDuration;
         }
 
+        public void CompleteAudioProcessing(TimeSpan audioProcessingDuration)
+        {
+            AudioProcessingDuration = audioProcessingDuration;
+        }
+
+        public void AddClipboardOutputDuration(TimeSpan clipboardOutputDuration)
+        {
+            ClipboardOutputDuration = ClipboardOutputDuration is null
+                ? clipboardOutputDuration
+                : ClipboardOutputDuration.Value + clipboardOutputDuration;
+        }
+
+        public void CompleteTranscription(TimeSpan transcriptionDuration)
+        {
+            TranscriptionDuration = transcriptionDuration;
+        }
+
         public SessionTimingLogEntry CreateLogEntry(string status, string? errorCategory)
         {
             _totalSessionStopwatch.Stop();
@@ -339,17 +792,32 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
                 errorCategory,
                 _snapshot.MicrophoneDeviceId,
                 _snapshot.TranscriptionProviderId,
-                AudioProcessorProviderId: null,
+                _snapshot.AudioProcessorProviderId,
                 _snapshot.IsCleanupEnabled ? _snapshot.CleanupProviderId : null,
                 _snapshot.EnabledOutputProviderIds,
                 RecordingDuration,
                 _totalSessionStopwatch.Elapsed,
                 CaptureFinalizationDuration,
-                AudioProcessingDuration: null,
-                TranscriptionDuration: null,
+                AudioProcessingDuration,
+                TranscriptionDuration,
                 TextCleanupDuration: null,
-                ClipboardOutputDuration: null,
+                ClipboardOutputDuration,
                 TempFileCleanupDuration: null);
+        }
+    }
+
+    private sealed record PendingOutput(string Text, SessionSnapshot Snapshot, Guid SessionId, string ErrorCategory);
+
+    private readonly record struct OutputWriteResult(bool Succeeded, string StatusMessage, string? ErrorCategory)
+    {
+        public static OutputWriteResult Success(string statusMessage)
+        {
+            return new OutputWriteResult(true, statusMessage, null);
+        }
+
+        public static OutputWriteResult Failure(string statusMessage, string errorCategory)
+        {
+            return new OutputWriteResult(false, statusMessage, errorCategory);
         }
     }
 }

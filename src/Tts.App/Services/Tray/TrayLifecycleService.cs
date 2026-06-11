@@ -15,6 +15,8 @@ public sealed class TrayLifecycleService : IDisposable
     private Forms.ToolStripMenuItem? _statusItem;
     private Forms.ToolStripMenuItem? _startStopItem;
     private Forms.ToolStripMenuItem? _cancelItem;
+    private Forms.ToolStripMenuItem? _retryOutputItem;
+    private Forms.ToolStripMenuItem? _dismissOutputItem;
     private Forms.NotifyIcon? _notifyIcon;
     private SettingsWindow? _settingsWindow;
 
@@ -40,6 +42,8 @@ public sealed class TrayLifecycleService : IDisposable
         };
         _startStopItem = new Forms.ToolStripMenuItem("Start Recording", null, async (_, _) => await _sessionOrchestrator.HandleStartStopAsync());
         _cancelItem = new Forms.ToolStripMenuItem("Cancel Session", null, async (_, _) => await _sessionOrchestrator.CancelAsync());
+        _retryOutputItem = new Forms.ToolStripMenuItem("Retry Output", null, async (_, _) => await _sessionOrchestrator.RetryOutputAsync());
+        _dismissOutputItem = new Forms.ToolStripMenuItem("Dismiss Output", null, async (_, _) => await _sessionOrchestrator.DismissPendingOutputAsync());
         var openSettingsItem = new Forms.ToolStripMenuItem("Open Settings", null, (_, _) => ShowSettingsWindow());
         var quitItem = new Forms.ToolStripMenuItem("Quit", null, (_, _) => Quit());
 
@@ -48,6 +52,8 @@ public sealed class TrayLifecycleService : IDisposable
         contextMenu.Items.Add(new Forms.ToolStripSeparator());
         contextMenu.Items.Add(_startStopItem);
         contextMenu.Items.Add(_cancelItem);
+        contextMenu.Items.Add(_retryOutputItem);
+        contextMenu.Items.Add(_dismissOutputItem);
         contextMenu.Items.Add(new Forms.ToolStripSeparator());
         contextMenu.Items.Add(openSettingsItem);
         contextMenu.Items.Add(new Forms.ToolStripSeparator());
@@ -153,6 +159,20 @@ public sealed class TrayLifecycleService : IDisposable
         if (_cancelItem is not null)
         {
             _cancelItem.Enabled = state is AppSessionState.Recording or AppSessionState.Processing;
+        }
+
+        var hasPendingOutput = _sessionOrchestrator.HasPendingOutput;
+
+        if (_retryOutputItem is not null)
+        {
+            _retryOutputItem.Visible = hasPendingOutput;
+            _retryOutputItem.Enabled = state == AppSessionState.Error && hasPendingOutput;
+        }
+
+        if (_dismissOutputItem is not null)
+        {
+            _dismissOutputItem.Visible = hasPendingOutput;
+            _dismissOutputItem.Enabled = state == AppSessionState.Error && hasPendingOutput;
         }
     }
 

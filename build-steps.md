@@ -36,7 +36,7 @@ Complete these checks before starting application implementation.
 | System temp/AppData write access | Config, logs, and temporary WAV files | `Complete` | Yes | Created and deleted test files under `%AppData%` and the OS temp directory. |
 | Clipboard access | Clipboard output provider | `Complete` | Yes | Verified non-destructive Win32 `OpenClipboard`/`CloseClipboard` access. |
 | whisper.cpp executable | First local batch transcription provider | `Complete` | Yes | Installed v1.8.6 at `%LOCALAPPDATA%/tts/tools/whisper.cpp/v1.8.6/Release/whisper-cli.exe` and verified `--help`. |
-| Whisper model file | First local batch transcription provider | `Complete` | Yes | Installed `ggml-tiny.en.bin` at `%LOCALAPPDATA%/tts/models/whisper/ggml-tiny.en.bin` and completed a CLI smoke test. |
+| Whisper model files | First local batch transcription provider | `Complete` | Yes | Installed `ggml-tiny.en.bin`, `ggml-base.en.bin`, `ggml-small.en.bin`, and `ggml-large-v3-turbo.bin` under `%LOCALAPPDATA%/tts/models/whisper`; tiny completed a CLI smoke test. |
 | Remote streaming provider credentials or mock provider decision | First streaming transcription provider | `Complete` | Yes | Use a local mock streaming provider for v1 so no remote credentials are required yet. |
 | Serilog file sink package | Sanitized rolling file logs | `Complete` | Yes | Restored `Serilog` and `Serilog.Sinks.File` in the temporary WPF project. |
 | Packaging tool decision | Single-file publish | `Complete` | Yes | Use a self-contained single-file Windows publish instead of an installer/MSIX for the first distribution path. |
@@ -49,9 +49,9 @@ Complete these checks before starting application implementation.
 | 1 | Build app shell, tray lifecycle, and settings storage | `Complete` | Yes | Product and stack plan |
 | 2 | Implement explicit state machine, global hotkeys, and cancellation | `Complete` | Yes | Step 1 |
 | 3 | Implement microphone selection, recording, and level meter | `Complete` | Yes | Steps 1-2 |
-| 4 | Add completed-file audio processing provider pipeline | `Not Started` | No | Step 3 |
-| 5 | Implement clipboard output provider | `Not Started` | No | Step 2 |
-| 6 | Implement first batch transcription provider | `Not Started` | No | Steps 3-4 |
+| 4 | Add completed-file audio processing provider pipeline | `Complete` | Yes | Step 3 |
+| 5 | Implement clipboard output provider | `Complete` | Yes | Step 2 |
+| 6 | Implement first batch transcription provider | `Complete` | Yes | Steps 3-4 |
 | 7 | Implement first streaming transcription provider with final-text output only | `Not Started` | No | Steps 2-3, provider interfaces |
 | 8 | Add multiple built-in transcription provider selection | `Not Started` | No | Steps 6-7 |
 | 9 | Add optional text cleanup provider with raw-transcript fallback | `Not Started` | No | Final transcript flow |
@@ -87,8 +87,8 @@ Complete? Yes
 - Start/Stop during `Processing` or `Outputting` reports the app as busy.
 - Cancel stops active `Recording` or `Processing` work and returns to `Idle`.
 - The orchestrator snapshots provider, microphone, output, and cleanup settings at session start so later changes apply to the next session.
-- Until audio and providers are implemented in later steps, stopping a recording transitions through `Processing` and returns to `Idle` with a placeholder status.
-- Future steps should attach audio capture, transcription, cleanup, and output work to the session orchestrator rather than changing app state directly.
+- Stopping a recording transitions through `Processing`, runs completed-file audio processing, runs batch transcription, and sends non-empty final text to enabled output providers.
+- Future cleanup and streaming work should attach to `SessionOrchestrator` rather than changing app state directly.
 
 ### 3. Microphone Selection, Recording, And Level Meter
 
@@ -101,67 +101,91 @@ Complete? Yes
 - Preserved the nullable selected microphone setting: an empty value means use the current Windows default input endpoint, and a device ID pins recording to that endpoint.
 - Connected `SessionOrchestrator` to real audio capture for `Idle` -> `Recording`, WAV finalization for `Recording` -> `Processing`, and capture cancellation for discard paths.
 - Wrote active-session recordings to app-specific temp WAV files under `%TEMP%/SpeechToTextDaemon/audio`.
-- Deleted the placeholder temp WAV after the current no-provider processing placeholder completes, and on cancellation or startup failure paths.
+- Deletes captured temp WAV files after success, cancellation, and recoverable failure paths.
 - Added an explicit settings-window input level meter using the selected microphone; preview capture starts only when the user starts the meter, while active recordings also publish level data.
 - Added `AudioChunkCaptured` events carrying copied PCM chunks plus capture format metadata so Step 7 streaming providers can attach without changing the WASAPI callback path.
 - Future capture finalization should be timed as `capture-finalization`: Stop requested while recording through completed WAV flush/close and readiness for audio processing.
 
 Future-step notes:
 
-- Step 4 audio processing should consume the `AudioRecordingResult.FilePath` before `SessionOrchestrator` ends the active session and return the file path that Step 6 batch transcription should consume.
 - Step 7 streaming transcription can subscribe to `IAudioCaptureService.AudioChunkCaptured` during recording; the event is raised only for recording sessions, not idle level-meter preview sessions.
 - Step 10 stale temp-file cleanup should target `%TEMP%/SpeechToTextDaemon/audio` for orphaned `recording-*.wav` files left by crashes or forced shutdowns.
 - Idle level metering is intentionally explicit so the app does not keep the microphone open continuously while idle.
 
 ### 4. Completed-File Audio Processing Provider Pipeline
 
-Status: `Not Started`
+Status: `Complete`
 
-Complete? No
+Complete? Yes
 
-- Define a small audio processing provider interface.
-- Start with a no-op provider that returns the original completed audio file unchanged.
-- Time this stage as `audio-processing`, including no-op processors.
-- Accept a completed captured audio file and return the audio file that downstream batch transcription should use.
-- Allow processors to write a new temporary audio file for normalization, gain changes, mono/stereo detection or conversion, silence trimming, and format conversion.
-- Track whether the returned file is original or processor-created so cleanup can delete every temp file safely without deleting something owned elsewhere.
-- Keep streaming chunk handling separate for now; first-build audio processing is completed-file processing only.
-- Preserve privacy rules: do not log raw audio, file contents, or user speech.
-- Surface recoverable processing failures and return to `Idle`, unless a selected processor explicitly supports fallback to the original captured file.
+- Defined a small completed-file audio processing provider interface.
+- Added a no-op audio processor with provider ID `noop` that returns the original completed audio file unchanged.
+- Added selected audio processor settings with `noop` as the default.
+- Snapshotted the selected audio processor at recording start so changes apply to the next session.
+- Timed this stage as `audio-processing`, including the no-op processor.
+- The orchestrator now passes the processed audio result to downstream batch transcription.
+- The processing result tracks whether the returned file is the original capture or a processor-created file.
+- Processor-created temp files are tracked for end-of-session cleanup without deleting files owned elsewhere.
+- Streaming chunk handling remains separate; first-build audio processing is completed-file only.
+- Processing failures are treated as recoverable session failures and return through the existing `Error` state.
+- Privacy rules are preserved: the provider boundary does not log raw audio, file contents, or user speech.
 
 Future-step notes:
 
-- Step 6 batch transcription should receive the processed audio file path, not always the original capture path.
-- Step 10 temp-file cleanup should include processor-created temp files as well as original capture files.
-- Later provider selection should expose the audio processor separately from transcription providers so users can combine a processor with any compatible batch transcription provider.
+- Future non-no-op processors should write outputs to app-owned temp locations and return `IsOriginalFile: false` so cleanup can delete them safely.
+- Later provider selection should expose audio processors separately from transcription providers so users can combine a processor with any compatible batch transcription provider.
 
 ### 5. Clipboard Output Provider
 
-Status: `Not Started`
+Status: `Complete`
 
-Complete? No
+Complete? Yes
 
-- Define a small output provider interface.
-- Add clipboard output as the first provider.
-- Time clipboard writes as `clipboard-output`.
-- Send only final text to output providers.
-- Handle clipboard failures by notifying the user and keeping the transcript available for retry or dismissal.
-- Leave room for additional output destinations without changing the orchestrator.
+- Defined a small `IOutputProvider` interface with provider ID, display name, and final-text write operation.
+- Added `ClipboardOutputProvider` as the first output provider with ID `clipboard`.
+- Registered clipboard output through dependency injection and kept `clipboard` as the default enabled output provider.
+- Clipboard writes marshal to the WPF dispatcher so hotkey or tray-triggered sessions can safely write to the Windows clipboard.
+- Added `Outputting` state handling for final-text output and timed clipboard writes as `clipboard-output` when the provider runs.
+- Kept output providers final-text only; no partial streaming text is sent to output providers.
+- Clipboard failures move the session to `Error`, keep the final transcript in memory for retry or dismissal, and avoid logging transcript text.
+- Added tray actions to retry or dismiss pending output after an output failure.
+- Left room for additional output destinations through the output provider collection without changing clipboard-specific orchestration.
+
+Future-step notes:
+
+- Batch transcription now calls the existing final output path with a real final transcript.
+- Output failure handling retains only the final transcript text for retry; captured temp audio is deleted once it is no longer needed for transcription/output retry.
 
 ### 6. First Batch Transcription Provider
 
-Status: `Not Started`
+Status: `Complete`
 
-Complete? No
+Complete? Yes
 
-- Define the batch transcription provider interface.
-- Add provider metadata: `id`, `displayName`, `transcriptionMode`, and `requiresEndpoint`.
-- Implement an initial batch provider, preferably a whisper.cpp adapter.
-- Pass the processed temp audio file to the provider.
-- Time provider work as `transcription`.
-- Return final transcript text to the orchestrator.
-- Support cancellation and timeout behavior.
-- Delete temp files after success, cancellation, or failure.
+- Defined a batch transcription provider interface.
+- Added provider metadata: `id`, `displayName`, `transcriptionMode`, and `requiresEndpoint`.
+- Implemented `WhisperCppBatchTranscriptionProvider` with provider ID `whisper-cpp-local`.
+- Added user-facing whisper.cpp provider settings for model selection, language, and timeout seconds.
+- Added local model options for `Tiny English (fastest)`, `Base English (balanced)`, `Small English (better accuracy)`, and `Large v3 Turbo (best local quality)`.
+- The normal settings UI does not expose the whisper.cpp executable path or raw model file path; those are internal provider/deployment details.
+- The provider resolves the local engine from `%LOCALAPPDATA%/tts/tools/whisper.cpp/v1.8.6/Release/whisper-cli.exe` unless an advanced config override is set.
+- The provider maps user-facing model IDs to app-managed files under `%LOCALAPPDATA%/tts/models/whisper` unless an advanced config override is set: `tiny-en` -> `ggml-tiny.en.bin`, `base-en` -> `ggml-base.en.bin`, `small-en` -> `ggml-small.en.bin`, and `large-v3-turbo` -> `ggml-large-v3-turbo.bin`.
+- Unsupported or stale saved model IDs normalize back to `tiny-en`.
+- The adapter invokes `whisper-cli.exe` with the resolved model, processed WAV file, language, no timestamps, and no extra prints.
+- The adapter captures stdout as the final transcript and does not log transcript text or raw audio.
+- The orchestrator passes the processed audio file path to the selected batch provider.
+- Provider work is timed as `transcription`.
+- Final transcript text is returned to the orchestrator and sent through the existing output provider pipeline.
+- Empty or silent transcription returns to `Idle` without writing empty text to output providers.
+- Cancellation and timeout kill the whisper.cpp process tree and return through the session cancellation or recoverable failure path.
+- Captured and processor-created temp files are deleted after success, cancellation, and recoverable failure.
+
+Future-step notes:
+
+- Step 8 should replace the free-text provider ID fields with provider selection controls backed by registered provider metadata.
+- Step 8 should keep provider executable paths and raw model file paths out of the normal UI; expose friendly provider settings such as model/profile and language instead.
+- Step 9 text cleanup should run after this batch transcription result and before the output provider pipeline.
+- Step 10 sanitized file logging should log provider IDs and sanitized stage outcomes only; do not add whisper stdout, transcript text, raw stderr, or temp file paths to logs.
 
 ### 7. First Streaming Transcription Provider
 
@@ -214,9 +238,9 @@ Complete? No
 - Added app log path support for `%AppData%/SpeechToTextDaemon/logs`.
 - Added `CsvSessionTimingLogWriter` to create and append `%AppData%/SpeechToTextDaemon/logs/timings.csv`.
 - Added one timing CSV row per recording session when the session ends in success, cancellation, or recoverable failure.
-- Captured current available timing data: `totalSessionMs`, `recordingDurationMs`, and `captureFinalizationMs`.
+- Captured current available timing data: `totalSessionMs`, `recordingDurationMs`, `captureFinalizationMs`, `audioProcessingMs`, `transcriptionMs`, and `clipboardOutputMs` when those stages run.
 - Captured sanitized session metadata currently available: session ID, UTC start/completion timestamps, status, sanitized error category, microphone device ID, transcription provider ID, cleanup provider ID, and output provider IDs.
-- Left not-yet-implemented stage duration columns empty: `audioProcessingMs`, `transcriptionMs`, `textCleanupMs`, `clipboardOutputMs`, and `tempFileCleanupMs`.
+- Left not-yet-implemented stage duration columns empty: `textCleanupMs` and `tempFileCleanupMs`.
 - Run stale temp-file cleanup on startup.
 - Delete captured and processed temp audio after success, cancellation, and failure.
 - Time end-of-session deletion as `temp-file-cleanup`.
@@ -257,14 +281,14 @@ Complete? No
 | Global Cancel hotkey | Step 2 | `Complete` | Yes |
 | Microphone selection | Step 3 | `Complete` | Yes |
 | Microphone level meter | Step 3 | `Complete` | Yes |
-| Completed-file audio processing provider pipeline | Step 4 | `Not Started` | No |
+| Completed-file audio processing provider pipeline | Step 4 | `Complete` | Yes |
 | Explicit state machine | Step 2 | `Complete` | Yes |
-| At least one batch transcription provider | Step 6 | `Not Started` | No |
+| At least one batch transcription provider | Step 6 | `Complete` | Yes |
 | At least one streaming transcription provider | Step 7 | `Not Started` | No |
 | Multiple built-in transcription provider selection | Step 8 | `Not Started` | No |
 | Optional text cleanup provider | Step 9 | `Not Started` | No |
-| Clipboard output provider | Step 5 | `Not Started` | No |
-| Temp file cleanup | Step 10 | `Not Started` | No |
+| Clipboard output provider | Step 5 | `Complete` | Yes |
+| Temp file cleanup | Step 10 | `In Progress` | No |
 | Timing CSV logging | Step 10 | `Complete` | Yes |
 | Sanitized file logging | Step 10 | `In Progress` | No |
 
