@@ -48,7 +48,7 @@ Complete these checks before starting application implementation.
 | --- | --- | --- | --- | --- |
 | 1 | Build app shell, tray lifecycle, and settings storage | `Complete` | Yes | Product and stack plan |
 | 2 | Implement explicit state machine, global hotkeys, and cancellation | `Complete` | Yes | Step 1 |
-| 3 | Implement microphone selection, recording, and level meter | `Not Started` | No | Steps 1-2 |
+| 3 | Implement microphone selection, recording, and level meter | `Complete` | Yes | Steps 1-2 |
 | 4 | Implement clipboard output provider | `Not Started` | No | Step 2 |
 | 5 | Implement first batch transcription provider | `Not Started` | No | Steps 2-3 |
 | 6 | Implement first streaming transcription provider with final-text output only | `Not Started` | No | Steps 2-3, provider interfaces |
@@ -90,18 +90,25 @@ Complete? Yes
 
 ### 3. Microphone Selection, Recording, And Level Meter
 
-Status: `Not Started`
+Status: `Complete`
 
-Complete? No
+Complete? Yes
 
-- Use WASAPI shared mode through NAudio for the first capture backend.
-- Enumerate microphone devices.
-- Store and apply the selected microphone.
-- Capture audio for the active session.
-- Write audio to a temporary WAV file for batch providers.
-- Feed audio chunks to streaming provider sessions.
-- Provide microphone level data for the settings UI.
-- Store temp audio in the OS temp or app data location.
+- Added NAudio as the first audio dependency and implemented WASAPI shared-mode capture through `WasapiAudioCaptureService`.
+- Added microphone endpoint enumeration with a settings-window microphone selector and refresh action.
+- Preserved the nullable selected microphone setting: an empty value means use the current Windows default input endpoint, and a device ID pins recording to that endpoint.
+- Connected `SessionOrchestrator` to real audio capture for `Idle` -> `Recording`, WAV finalization for `Recording` -> `Processing`, and capture cancellation for discard paths.
+- Wrote active-session recordings to app-specific temp WAV files under `%TEMP%/SpeechToTextDaemon/audio`.
+- Deleted the placeholder temp WAV after the current no-provider processing placeholder completes, and on cancellation or startup failure paths.
+- Added an explicit settings-window input level meter using the selected microphone; preview capture starts only when the user starts the meter, while active recordings also publish level data.
+- Added `AudioChunkCaptured` events carrying copied PCM chunks plus capture format metadata so Step 6 streaming providers can attach without changing the WASAPI callback path.
+
+Future-step notes:
+
+- Step 5 batch transcription should consume the `AudioRecordingResult.FilePath` before `SessionOrchestrator` ends the active session, then keep the existing delete-after-session behavior.
+- Step 6 streaming transcription can subscribe to `IAudioCaptureService.AudioChunkCaptured` during recording; the event is raised only for recording sessions, not idle level-meter preview sessions.
+- Step 9 stale temp-file cleanup should target `%TEMP%/SpeechToTextDaemon/audio` for orphaned `recording-*.wav` files left by crashes or forced shutdowns.
+- Idle level metering is intentionally explicit so the app does not keep the microphone open continuously while idle.
 
 ### 4. Clipboard Output Provider
 
@@ -205,8 +212,8 @@ Complete? No
 | Settings window | Steps 1, 7, 8, 10 | `In Progress` | No |
 | Global Start/Stop hotkey | Step 2 | `Complete` | Yes |
 | Global Cancel hotkey | Step 2 | `Complete` | Yes |
-| Microphone selection | Step 3 | `Not Started` | No |
-| Microphone level meter | Step 3 | `Not Started` | No |
+| Microphone selection | Step 3 | `Complete` | Yes |
+| Microphone level meter | Step 3 | `Complete` | Yes |
 | Explicit state machine | Step 2 | `Complete` | Yes |
 | At least one batch transcription provider | Step 5 | `Not Started` | No |
 | At least one streaming transcription provider | Step 6 | `Not Started` | No |

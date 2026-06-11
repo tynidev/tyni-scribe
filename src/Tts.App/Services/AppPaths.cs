@@ -8,5 +8,10 @@ public sealed class AppPaths
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "SpeechToTextDaemon");
 
+    public string TempAudioDirectory { get; } = Path.Combine(
+        Path.GetTempPath(),
+        "SpeechToTextDaemon",
+        "audio");
+
     public string SettingsFilePath => Path.Combine(AppDataDirectory, "config.json");
 }

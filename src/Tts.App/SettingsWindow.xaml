@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Speech-to-Text Daemon Settings"
         Width="720"
-        Height="560"
+        SizeToContent="Height"
         MinWidth="600"
         MinHeight="500"
         Icon="Assets/speech-to-text-daemon.ico"
@@ -94,16 +94,58 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,12,8" Text="Microphone device ID" />
-                        <TextBox Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" Text="{Binding SelectedMicrophoneDeviceId, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,12,8" Text="Microphone" />
+                        <Grid Grid.Row="0" Grid.Column="1" Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ComboBox Grid.Column="0"
+                                      ItemsSource="{Binding MicrophoneDevices}"
+                                      DisplayMemberPath="DisplayName"
+                                      SelectedValuePath="Id"
+                                      SelectedValue="{Binding SelectedMicrophoneDeviceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <Button Grid.Column="1"
+                                    Margin="8,0,0,0"
+                                    Padding="12,4"
+                                    Command="{Binding RefreshMicrophonesCommand}"
+                                    Content="Refresh" />
+                        </Grid>
 
-                        <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,12,8" Text="Cleanup" />
-                        <CheckBox Grid.Row="1" Grid.Column="1" Margin="0,0,0,8" IsChecked="{Binding IsCleanupEnabled}" Content="Enabled" />
+                        <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,12,8" Text="Input level" />
+                        <Grid Grid.Row="1" Grid.Column="1" Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="54" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ProgressBar Grid.Column="0"
+                                         Height="16"
+                                         Minimum="0"
+                                         Maximum="1"
+                                         Value="{Binding MicrophoneLevel}" />
+                            <TextBlock Grid.Column="1"
+                                       Margin="8,0,0,0"
+                                       VerticalAlignment="Center"
+                                       Text="{Binding MicrophoneLevelText}" />
+                            <Button Grid.Column="2"
+                                    Padding="12,4"
+                                    Command="{Binding ToggleLevelMonitoringCommand}"
+                                    Content="{Binding LevelMonitoringButtonText}" />
+                        </Grid>
 
-                        <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,12,0" Text="Cleanup prompt" />
-                        <TextBox Grid.Row="2" Grid.Column="1"
+                        <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,12,8" Text="Microphone status" />
+                        <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,0,0,8" Text="{Binding MicrophoneStatus}" TextWrapping="Wrap" />
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,0,12,8" Text="Cleanup" />
+                        <CheckBox Grid.Row="3" Grid.Column="1" Margin="0,0,0,8" IsChecked="{Binding IsCleanupEnabled}" Content="Enabled" />
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,0,12,0" Text="Cleanup prompt" />
+                        <TextBox Grid.Row="4" Grid.Column="1"
                                  MinHeight="80"
                                  Text="{Binding CleanupPrompt, UpdateSourceTrigger=PropertyChanged}"
                                  TextWrapping="Wrap"
