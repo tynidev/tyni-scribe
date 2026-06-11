@@ -37,6 +37,9 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,12,8" Text="Config version" />
@@ -49,7 +52,16 @@
                         <TextBox Grid.Row="2" Grid.Column="1" Margin="0,0,0,8" Text="{Binding SelectedTranscriptionProviderId, UpdateSourceTrigger=PropertyChanged}" />
 
                         <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,0,12,0" Text="Output providers" />
-                        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding EnabledOutputProviders, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBox Grid.Row="3" Grid.Column="1" Margin="0,0,0,8" Text="{Binding EnabledOutputProviders, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,0,12,8" Text="Session state" />
+                        <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,0,0,8" Text="{Binding SessionState}" />
+
+                        <TextBlock Grid.Row="5" Grid.Column="0" Margin="0,0,12,8" Text="Session status" />
+                        <TextBlock Grid.Row="5" Grid.Column="1" Margin="0,0,0,8" Text="{Binding SessionStatus}" TextWrapping="Wrap" />
+
+                        <TextBlock Grid.Row="6" Grid.Column="0" Margin="0,0,12,0" Text="Hotkey status" />
+                        <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding HotkeyStatus}" TextWrapping="Wrap" />
                     </Grid>
                 </GroupBox>
 

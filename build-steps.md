@@ -47,7 +47,7 @@ Complete these checks before starting application implementation.
 | Step | Work | Status | Complete? | Depends On |
 | --- | --- | --- | --- | --- |
 | 1 | Build app shell, tray lifecycle, and settings storage | `Complete` | Yes | Product and stack plan |
-| 2 | Implement explicit state machine, global hotkeys, and cancellation | `Not Started` | No | Step 1 |
+| 2 | Implement explicit state machine, global hotkeys, and cancellation | `Complete` | Yes | Step 1 |
 | 3 | Implement microphone selection, recording, and level meter | `Not Started` | No | Steps 1-2 |
 | 4 | Implement clipboard output provider | `Not Started` | No | Step 2 |
 | 5 | Implement first batch transcription provider | `Not Started` | No | Steps 2-3 |
@@ -74,18 +74,19 @@ Complete? Yes
 
 ### 2. State Machine, Hotkeys, And Cancellation
 
-Status: `Not Started`
+Status: `Complete`
 
-Complete? No
+Complete? Yes
 
-- Implement the explicit states: `Idle`, `Recording`, `Processing`, `Outputting`, and `Error`.
-- Make the session orchestrator the only owner of app state transitions.
-- Register global Start/Stop and Cancel hotkeys.
-- Start recording from `Idle` when Start/Stop is pressed.
-- Stop recording and begin processing from `Recording` when Start/Stop is pressed.
-- Ignore or notify as busy when Start/Stop is pressed during `Processing` or `Outputting`.
-- Cancel active recording or processing when Cancel is pressed.
-- Keep provider, microphone, and output setting changes from affecting active sessions.
+- Added the explicit states: `Idle`, `Recording`, `Processing`, `Outputting`, and `Error`.
+- Added a session orchestrator as the only owner of app state transitions.
+- Registered global Start/Stop and Cancel hotkeys through Win32 `RegisterHotKey` on the WPF UI thread.
+- Start/Stop moves from `Idle` to `Recording`, and from `Recording` to `Processing`.
+- Start/Stop during `Processing` or `Outputting` reports the app as busy.
+- Cancel stops active `Recording` or `Processing` work and returns to `Idle`.
+- The orchestrator snapshots provider, microphone, output, and cleanup settings at session start so later changes apply to the next session.
+- Until audio and providers are implemented in later steps, stopping a recording transitions through `Processing` and returns to `Idle` with a placeholder status.
+- Future steps should attach audio capture, transcription, cleanup, and output work to the session orchestrator rather than changing app state directly.
 
 ### 3. Microphone Selection, Recording, And Level Meter
 
@@ -202,11 +203,11 @@ Complete? No
 | --- | --- | --- | --- |
 | Windows background app with tray lifecycle | Step 1 | `Complete` | Yes |
 | Settings window | Steps 1, 7, 8, 10 | `In Progress` | No |
-| Global Start/Stop hotkey | Step 2 | `Not Started` | No |
-| Global Cancel hotkey | Step 2 | `Not Started` | No |
+| Global Start/Stop hotkey | Step 2 | `Complete` | Yes |
+| Global Cancel hotkey | Step 2 | `Complete` | Yes |
 | Microphone selection | Step 3 | `Not Started` | No |
 | Microphone level meter | Step 3 | `Not Started` | No |
-| Explicit state machine | Step 2 | `Not Started` | No |
+| Explicit state machine | Step 2 | `Complete` | Yes |
 | At least one batch transcription provider | Step 5 | `Not Started` | No |
 | At least one streaming transcription provider | Step 6 | `Not Started` | No |
 | Multiple built-in transcription provider selection | Step 7 | `Not Started` | No |

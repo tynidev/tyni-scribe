@@ -9,14 +9,20 @@ namespace Tts.App.Services.Tray;
 public sealed class TrayLifecycleService : IDisposable
 {
     private readonly IServiceProvider _serviceProvider;
+    private readonly ISessionOrchestrator _sessionOrchestrator;
     private Icon? _icon;
     private bool _ownsIcon;
+    private Forms.ToolStripMenuItem? _statusItem;
+    private Forms.ToolStripMenuItem? _startStopItem;
+    private Forms.ToolStripMenuItem? _cancelItem;
     private Forms.NotifyIcon? _notifyIcon;
     private SettingsWindow? _settingsWindow;
 
-    public TrayLifecycleService(IServiceProvider serviceProvider)
+    public TrayLifecycleService(IServiceProvider serviceProvider, ISessionOrchestrator sessionOrchestrator)
     {
         _serviceProvider = serviceProvider;
+        _sessionOrchestrator = sessionOrchestrator;
+        _sessionOrchestrator.StateChanged += OnSessionStateChanged;
     }
 
     public bool IsQuitRequested { get; private set; }
@@ -28,10 +34,21 @@ public sealed class TrayLifecycleService : IDisposable
             return;
         }
 
+        _statusItem = new Forms.ToolStripMenuItem("Status: Idle")
+        {
+            Enabled = false
+        };
+        _startStopItem = new Forms.ToolStripMenuItem("Start Recording", null, async (_, _) => await _sessionOrchestrator.HandleStartStopAsync());
+        _cancelItem = new Forms.ToolStripMenuItem("Cancel Session", null, async (_, _) => await _sessionOrchestrator.CancelAsync());
         var openSettingsItem = new Forms.ToolStripMenuItem("Open Settings", null, (_, _) => ShowSettingsWindow());
         var quitItem = new Forms.ToolStripMenuItem("Quit", null, (_, _) => Quit());
 
         var contextMenu = new Forms.ContextMenuStrip();
+        contextMenu.Items.Add(_statusItem);
+        contextMenu.Items.Add(new Forms.ToolStripSeparator());
+        contextMenu.Items.Add(_startStopItem);
+        contextMenu.Items.Add(_cancelItem);
+        contextMenu.Items.Add(new Forms.ToolStripSeparator());
         contextMenu.Items.Add(openSettingsItem);
         contextMenu.Items.Add(new Forms.ToolStripSeparator());
         contextMenu.Items.Add(quitItem);
@@ -47,6 +64,7 @@ public sealed class TrayLifecycleService : IDisposable
         };
 
         _notifyIcon.DoubleClick += (_, _) => ShowSettingsWindow();
+        UpdateTrayStatus(_sessionOrchestrator.State, _sessionOrchestrator.StatusMessage);
     }
 
     public void ShowSettingsWindow()
@@ -87,6 +105,8 @@ public sealed class TrayLifecycleService : IDisposable
 
     public void Dispose()
     {
+        _sessionOrchestrator.StateChanged -= OnSessionStateChanged;
+
         if (_notifyIcon is null)
         {
             return;
@@ -103,6 +123,43 @@ public sealed class TrayLifecycleService : IDisposable
 
         _icon = null;
         _ownsIcon = false;
+    }
+
+    private void OnSessionStateChanged(object? sender, SessionStateChangedEventArgs eventArgs)
+    {
+        System.Windows.Application.Current.Dispatcher.Invoke(() => UpdateTrayStatus(eventArgs.CurrentState, eventArgs.StatusMessage));
+    }
+
+    private void UpdateTrayStatus(AppSessionState state, string statusMessage)
+    {
+        if (_notifyIcon is null)
+        {
+            return;
+        }
+
+        _notifyIcon.Text = TruncateTooltip($"Speech-to-Text Daemon - {state}");
+
+        if (_statusItem is not null)
+        {
+            _statusItem.Text = $"Status: {state}";
+        }
+
+        if (_startStopItem is not null)
+        {
+            _startStopItem.Text = state == AppSessionState.Recording ? "Stop Recording" : "Start Recording";
+            _startStopItem.Enabled = state is AppSessionState.Idle or AppSessionState.Recording;
+        }
+
+        if (_cancelItem is not null)
+        {
+            _cancelItem.Enabled = state is AppSessionState.Recording or AppSessionState.Processing;
+        }
+    }
+
+    private static string TruncateTooltip(string text)
+    {
+        const int maxLength = 63;
+        return text.Length <= maxLength ? text : text[..maxLength];
     }
 
     private static Icon LoadIcon(out bool ownsIcon)

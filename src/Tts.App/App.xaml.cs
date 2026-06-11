@@ -24,7 +24,11 @@ public partial class App : System.Windows.Application
 			{
 				services.AddSingleton<AppPaths>();
 				services.AddSingleton<IAppSettingsStore, JsonAppSettingsStore>();
+				services.AddSingleton<ISessionOrchestrator, SessionOrchestrator>();
+				services.AddSingleton<GlobalHotkeyService>();
+				services.AddSingleton<IGlobalHotkeyService>(serviceProvider => serviceProvider.GetRequiredService<GlobalHotkeyService>());
 				services.AddHostedService<SettingsWarmupService>();
+				services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<GlobalHotkeyService>());
 				services.AddSingleton<TrayLifecycleService>();
 				services.AddSingleton<SettingsWindowViewModel>();
 				services.AddTransient<SettingsWindow>();

@@ -1,14 +1,18 @@
 using System.Diagnostics;
 using System.IO;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Tts.App.Configuration;
+using Tts.App.Services;
 
 namespace Tts.App.ViewModels;
 
 public sealed partial class SettingsWindowViewModel : ObservableObject
 {
     private readonly IAppSettingsStore _settingsStore;
+    private readonly ISessionOrchestrator _sessionOrchestrator;
+    private readonly IGlobalHotkeyService _hotkeyService;
     private AppSettings _settings = new();
 
     [ObservableProperty]
@@ -38,9 +42,30 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
     [ObservableProperty]
     private string _statusMessage = "Ready";
 
-    public SettingsWindowViewModel(IAppSettingsStore settingsStore)
+    [ObservableProperty]
+    private string _sessionState = AppSessionState.Idle.ToString();
+
+    [ObservableProperty]
+    private string _sessionStatus = "Ready";
+
+    [ObservableProperty]
+    private string _hotkeyStatus = "Hotkeys are not registered.";
+
+    public SettingsWindowViewModel(
+        IAppSettingsStore settingsStore,
+        ISessionOrchestrator sessionOrchestrator,
+        IGlobalHotkeyService hotkeyService)
     {
         _settingsStore = settingsStore;
+        _sessionOrchestrator = sessionOrchestrator;
+        _hotkeyService = hotkeyService;
+
+        SessionState = _sessionOrchestrator.State.ToString();
+        SessionStatus = _sessionOrchestrator.StatusMessage;
+        HotkeyStatus = _hotkeyService.StatusMessage;
+
+        _sessionOrchestrator.StateChanged += OnSessionStateChanged;
+        _hotkeyService.RegistrationStatusChanged += OnHotkeyRegistrationStatusChanged;
 
         LoadCommand = new AsyncRelayCommand(LoadAsync);
         SaveCommand = new AsyncRelayCommand(SaveAsync);
@@ -72,22 +97,66 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
 
     private async Task SaveAsync()
     {
-        _settings.ConfigVersion = AppSettings.CurrentConfigVersion;
-        _settings.SelectedMicrophoneDeviceId = string.IsNullOrWhiteSpace(SelectedMicrophoneDeviceId)
-            ? null
-            : SelectedMicrophoneDeviceId.Trim();
-        _settings.StartStopHotkey.Gesture = StartStopHotkey.Trim();
-        _settings.CancelHotkey.Gesture = CancelHotkey.Trim();
-        _settings.SelectedTranscriptionProviderId = SelectedTranscriptionProviderId.Trim();
-        _settings.Cleanup.IsEnabled = IsCleanupEnabled;
-        _settings.Cleanup.Prompt = CleanupPrompt.Trim();
-        _settings.EnabledOutputProviderIds = EnabledOutputProviders
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .DefaultIfEmpty("clipboard")
-            .ToList();
+        var nextSettings = new AppSettings
+        {
+            ConfigVersion = AppSettings.CurrentConfigVersion,
+            SelectedMicrophoneDeviceId = string.IsNullOrWhiteSpace(SelectedMicrophoneDeviceId)
+                ? null
+                : SelectedMicrophoneDeviceId.Trim(),
+            StartStopHotkey = HotkeySettings.FromGesture(StartStopHotkey.Trim()),
+            CancelHotkey = HotkeySettings.FromGesture(CancelHotkey.Trim()),
+            SelectedTranscriptionProviderId = SelectedTranscriptionProviderId.Trim(),
+            Cleanup = new CleanupSettings
+            {
+                IsEnabled = IsCleanupEnabled,
+                ProviderId = _settings.Cleanup.ProviderId,
+                Prompt = CleanupPrompt.Trim()
+            },
+            EnabledOutputProviderIds = EnabledOutputProviders
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .DefaultIfEmpty("clipboard")
+                .ToList(),
+            SettingsWindow = _settings.SettingsWindow
+        };
 
+        var hotkeyResult = await _hotkeyService.ApplySettingsAsync(nextSettings);
+
+        if (!hotkeyResult.Succeeded)
+        {
+            StatusMessage = hotkeyResult.Message;
+            return;
+        }
+
+        _settings = nextSettings;
         await _settingsStore.SaveAsync(_settings);
         StatusMessage = "Settings saved";
+    }
+
+    private void OnSessionStateChanged(object? sender, SessionStateChangedEventArgs eventArgs)
+    {
+        RunOnUiThread(() =>
+        {
+            SessionState = eventArgs.CurrentState.ToString();
+            SessionStatus = eventArgs.StatusMessage;
+        });
+    }
+
+    private void OnHotkeyRegistrationStatusChanged(object? sender, HotkeyRegistrationStatusChangedEventArgs eventArgs)
+    {
+        RunOnUiThread(() => HotkeyStatus = eventArgs.Message);
+    }
+
+    private static void RunOnUiThread(Action action)
+    {
+        var dispatcher = System.Windows.Application.Current.Dispatcher;
+
+        if (dispatcher.CheckAccess())
+        {
+            action();
+            return;
+        }
+
+        dispatcher.Invoke(action);
     }
 
     private void OpenSettingsFolder()
