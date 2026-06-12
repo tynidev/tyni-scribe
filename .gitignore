@@ -3,6 +3,8 @@
 [Oo]bj/
 [Aa]rtifacts/
 [Pp]ublish/
+build/
+CMakeUserPresets.json
 
 # .NET restore and package artifacts
 *.nupkg

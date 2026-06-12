@@ -16,6 +16,24 @@
     </Content>
   </ItemGroup>
 
+  <ItemGroup Condition="Exists('..\..\build\native\Tts.WhisperInterop\tts-whisper-interop.dll')">
+    <Content Include="..\..\build\native\Tts.WhisperInterop\tts-whisper-interop.dll" Link="tts-whisper-interop.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\bin\cudart64_12.dll')">
+    <Content Include="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\bin\cudart64_12.dll" Link="cudart64_12.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\bin\cublas64_12.dll" Link="cublas64_12.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\bin\cublasLt64_12.dll" Link="cublasLt64_12.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
