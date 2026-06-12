@@ -98,10 +98,20 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
         }
 
         settings.StartStopHotkey ??= HotkeySettings.FromGesture("Ctrl+Alt+Space");
-        settings.CancelHotkey ??= HotkeySettings.FromGesture("Ctrl+Alt+Escape");
+        settings.CancelHotkey ??= HotkeySettings.FromGesture("Ctrl+Shift+Space");
+        if (settings.CancelHotkey.Gesture.Equals("Ctrl+Alt+Escape", StringComparison.OrdinalIgnoreCase))
+        {
+            settings.CancelHotkey = HotkeySettings.FromGesture("Ctrl+Shift+Space");
+        }
+
         settings.SelectedTranscriptionProviderId = string.IsNullOrWhiteSpace(settings.SelectedTranscriptionProviderId)
-            ? "whisper-cpp-local"
+            ? "whisper-cpp-native-local"
             : settings.SelectedTranscriptionProviderId;
+        if (settings.SelectedTranscriptionProviderId.Equals("whisper-cpp-local", StringComparison.OrdinalIgnoreCase))
+        {
+            settings.SelectedTranscriptionProviderId = "whisper-cpp-native-local";
+        }
+
         settings.SelectedAudioProcessorProviderId = string.IsNullOrWhiteSpace(settings.SelectedAudioProcessorProviderId)
             ? "noop"
             : settings.SelectedAudioProcessorProviderId;
@@ -125,7 +135,16 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
             ? 600
             : settings.Transcription.TimeoutSeconds;
         settings.Cleanup ??= new CleanupSettings();
-        settings.EnabledOutputProviderIds ??= new List<string> { "clipboard" };
+        settings.EnabledOutputProviderIds ??= new List<string> { "paste" };
+        if (settings.EnabledOutputProviderIds.Count == 0)
+        {
+            settings.EnabledOutputProviderIds.Add("paste");
+        }
+        else if (settings.EnabledOutputProviderIds.Count == 1 && settings.EnabledOutputProviderIds[0].Equals("clipboard", StringComparison.OrdinalIgnoreCase))
+        {
+            settings.EnabledOutputProviderIds[0] = "paste";
+        }
+
         settings.SettingsWindow ??= new SettingsWindowPlacement();
 
         return settings;

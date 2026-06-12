@@ -147,7 +147,7 @@ Complete? Yes
 - Defined a small `IOutputProvider` interface with provider ID, display name, and final-text write operation.
 - Added `ClipboardOutputProvider` as the first output provider with ID `clipboard`.
 - Added `PasteOutputProvider` with ID `paste`; it sets the clipboard to the final transcript and sends Ctrl+V to the active window.
-- Registered clipboard output through dependency injection and kept `clipboard` as the default enabled output provider.
+- Registered clipboard output through dependency injection as a safe output provider.
 - Registered paste output through dependency injection as an opt-in output provider.
 - Clipboard writes marshal to the WPF dispatcher so hotkey or tray-triggered sessions can safely write to the Windows clipboard.
 - Added `Outputting` state handling for final-text output and timed clipboard writes as `clipboard-output` when the provider runs.
@@ -185,7 +185,7 @@ Complete? Yes
 - Cancellation and timeout kill the whisper.cpp process tree and return through the session cancellation or recoverable failure path.
 - Captured and processor-created temp files are deleted after success, cancellation, and recoverable failure.
 - Extracted shared whisper.cpp runtime path resolution so the CLI provider and future native provider use the same model ID mapping and advanced model path override behavior.
-- Added warm local whisper.cpp provider support with provider ID `whisper-cpp-warm-local`, while keeping `whisper-cpp-local` as the default selected provider.
+- Added warm local whisper.cpp provider support with provider ID `whisper-cpp-warm-local`.
 - The warm worker provider starts the installed `whisper-server.exe` lazily, keeps the selected model loaded across sessions, restarts when the selected model or language changes, sends completed WAV files through local `/inference`, and stops the worker on cancellation, timeout, provider shutdown, or app exit.
 - Added native local whisper.cpp provider support with provider ID `whisper-cpp-native-local`.
 - Added faster-whisper/CTranslate2 local GPU provider support with provider ID `faster-whisper-local`. It appears in the provider dropdown, keeps separate CTranslate2 model and compute-type settings, and is not the default provider.
@@ -208,7 +208,7 @@ Future-step notes:
 - CTranslate2 has official C++ APIs and Windows/CMake/CUDA support, but the future Python-free native app path still needs native WAV resampling, Whisper log-mel feature extraction, 30-second chunking, tokenizer loading, prompt construction, token decoding, and segment aggregation.
 - The current process bridge is intentionally a practical integration step for exercising the faster-whisper pipeline; the direct C++ provider remains future work.
 - Pin CTranslate2 before enabling real native transcription. Current docs recommend documenting a specific tag such as `v4.8.0`; recent faster-whisper GPU builds require CUDA 12 and cuDNN 9, while older CTranslate2 versions used different cuDNN pairings.
-- Keep `whisper-cpp-local` as the default provider until the CTranslate2 provider has a real native implementation and a small-WAV CUDA smoke test.
+- Keep `whisper-cpp-native-local` as the default provider, with `whisper-cpp-local` remaining available as the compatibility fallback.
 - Step 9 text cleanup should run after this batch transcription result and before the output provider pipeline.
 - Step 10 sanitized file logging should log provider IDs and sanitized stage outcomes only; do not add whisper stdout, transcript text, raw stderr, or temp file paths to logs.
 
@@ -232,6 +232,8 @@ Status: `In Progress`
 Complete? No
 
 - Registered multiple local batch transcription providers: `whisper-cpp-local` for the current CLI adapter, `whisper-cpp-warm-local` for the long-lived local worker, `whisper-cpp-native-local` for the in-process native DLL wrapper, and `faster-whisper-local` as a non-default faster-whisper/CTranslate2 provider.
+- `whisper-cpp-native-local` is the default transcription provider for new configs, using the tiny English model by default.
+- `paste` is the default output provider for new configs, with `clipboard` still available as the safer manual-paste option.
 - Replaced the settings-window free-text transcription provider field with a dropdown populated from registered provider metadata.
 - The dropdown stores the selected provider ID in the existing config field and falls back to `whisper-cpp-local` when saved settings reference an unavailable provider.
 - Provider-specific settings now react to the selected provider; whisper.cpp model, language, and timeout controls are shown only for whisper.cpp providers, including the warm worker and native local providers.

@@ -10,9 +10,9 @@ public sealed class AppSettings
 
     public HotkeySettings StartStopHotkey { get; set; } = HotkeySettings.FromGesture("Ctrl+Alt+Space");
 
-    public HotkeySettings CancelHotkey { get; set; } = HotkeySettings.FromGesture("Ctrl+Alt+Escape");
+    public HotkeySettings CancelHotkey { get; set; } = HotkeySettings.FromGesture("Ctrl+Shift+Space");
 
-    public string SelectedTranscriptionProviderId { get; set; } = "whisper-cpp-local";
+    public string SelectedTranscriptionProviderId { get; set; } = "whisper-cpp-native-local";
 
     public string SelectedAudioProcessorProviderId { get; set; } = "noop";
 
@@ -20,7 +20,7 @@ public sealed class AppSettings
 
     public CleanupSettings Cleanup { get; set; } = new();
 
-    public List<string> EnabledOutputProviderIds { get; set; } = new() { "clipboard" };
+    public List<string> EnabledOutputProviderIds { get; set; } = new() { "paste" };
 
     public SettingsWindowPlacement SettingsWindow { get; set; } = new();
 }

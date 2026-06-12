@@ -542,6 +542,11 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
             return providerId;
         }
 
+        if (TranscriptionProviders.Any(provider => provider.Id.Equals(WhisperNativeBatchTranscriptionProvider.ProviderId, StringComparison.OrdinalIgnoreCase)))
+        {
+            return WhisperNativeBatchTranscriptionProvider.ProviderId;
+        }
+
         if (TranscriptionProviders.Any(provider => provider.Id.Equals(WhisperCppBatchTranscriptionProvider.ProviderId, StringComparison.OrdinalIgnoreCase)))
         {
             return WhisperCppBatchTranscriptionProvider.ProviderId;
@@ -570,6 +575,11 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         if (OutputProviders.Any(provider => provider.Id.Equals(providerId, StringComparison.OrdinalIgnoreCase)))
         {
             return providerId;
+        }
+
+        if (OutputProviders.Any(provider => provider.Id.Equals(PasteOutputProvider.ProviderId, StringComparison.OrdinalIgnoreCase)))
+        {
+            return PasteOutputProvider.ProviderId;
         }
 
         if (OutputProviders.Any(provider => provider.Id.Equals(ClipboardOutputProvider.ProviderId, StringComparison.OrdinalIgnoreCase)))
