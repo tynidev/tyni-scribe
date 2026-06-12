@@ -9,6 +9,10 @@
         Icon="Assets/speech-to-text-daemon.ico"
         WindowStartupLocation="CenterScreen"
         Loaded="OnLoaded">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    </Window.Resources>
+
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -53,25 +57,52 @@
                         <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,0,0,8" Text="{Binding ConfigPath}" TextWrapping="Wrap" />
 
                         <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,12,8" Text="Transcription provider" />
-                        <TextBox Grid.Row="2" Grid.Column="1" Margin="0,0,0,8" Text="{Binding SelectedTranscriptionProviderId, UpdateSourceTrigger=PropertyChanged}" />
+                        <ComboBox Grid.Row="2"
+                                  Grid.Column="1"
+                                  Margin="0,0,0,8"
+                                  ItemsSource="{Binding TranscriptionProviders}"
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="Id"
+                                  SelectedValue="{Binding SelectedTranscriptionProviderId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
                         <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,0,12,8" Text="Audio processor" />
                         <TextBox Grid.Row="3" Grid.Column="1" Margin="0,0,0,8" Text="{Binding SelectedAudioProcessorProviderId, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,0,12,8" Text="Whisper model" />
+                        <TextBlock Grid.Row="4"
+                                   Grid.Column="0"
+                                   Margin="0,0,12,8"
+                                   Text="Whisper model"
+                                   Visibility="{Binding IsWhisperCppProviderSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
                         <ComboBox Grid.Row="4"
                                   Grid.Column="1"
                                   Margin="0,0,0,8"
                                   ItemsSource="{Binding TranscriptionModels}"
                                   DisplayMemberPath="DisplayName"
                                   SelectedValuePath="Id"
-                                  SelectedValue="{Binding SelectedWhisperCppModelId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                  SelectedValue="{Binding SelectedWhisperCppModelId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  Visibility="{Binding IsWhisperCppProviderSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
-                        <TextBlock Grid.Row="5" Grid.Column="0" Margin="0,0,12,8" Text="Language" />
-                        <TextBox Grid.Row="5" Grid.Column="1" Margin="0,0,0,8" Text="{Binding TranscriptionLanguage, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Grid.Row="5"
+                                   Grid.Column="0"
+                                   Margin="0,0,12,8"
+                                   Text="Language"
+                                   Visibility="{Binding IsWhisperCppProviderSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        <TextBox Grid.Row="5"
+                                 Grid.Column="1"
+                                 Margin="0,0,0,8"
+                                 Text="{Binding TranscriptionLanguage, UpdateSourceTrigger=PropertyChanged}"
+                                 Visibility="{Binding IsWhisperCppProviderSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
-                        <TextBlock Grid.Row="6" Grid.Column="0" Margin="0,0,12,8" Text="Timeout seconds" />
-                        <TextBox Grid.Row="6" Grid.Column="1" Margin="0,0,0,8" Text="{Binding TranscriptionTimeoutSeconds, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Grid.Row="6"
+                                   Grid.Column="0"
+                                   Margin="0,0,12,8"
+                                   Text="Timeout seconds"
+                                   Visibility="{Binding IsWhisperCppProviderSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        <TextBox Grid.Row="6"
+                                 Grid.Column="1"
+                                 Margin="0,0,0,8"
+                                 Text="{Binding TranscriptionTimeoutSeconds, UpdateSourceTrigger=PropertyChanged}"
+                                 Visibility="{Binding IsWhisperCppProviderSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
                         <TextBlock Grid.Row="7" Grid.Column="0" Margin="0,0,12,0" Text="Output providers" />
                         <TextBox Grid.Row="7" Grid.Column="1" Margin="0,0,0,8" Text="{Binding EnabledOutputProviders, UpdateSourceTrigger=PropertyChanged}" />

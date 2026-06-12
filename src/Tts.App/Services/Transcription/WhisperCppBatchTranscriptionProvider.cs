@@ -23,13 +23,13 @@ public sealed class WhisperCppBatchTranscriptionProvider : IBatchTranscriptionPr
             throw new FileNotFoundException("The completed recording is not available for transcription.");
         }
 
-        var executablePath = ResolveExecutablePath(request.Settings);
+        var executablePath = WhisperCppRuntimePaths.ResolveCliExecutablePath(request.Settings);
         if (string.IsNullOrWhiteSpace(executablePath) || !File.Exists(executablePath))
         {
             throw new FileNotFoundException("The local Whisper engine is not installed or was not found.");
         }
 
-        var modelPath = ResolveModelPath(request.Settings);
+        var modelPath = WhisperCppRuntimePaths.ResolveModelPath(request.Settings);
         if (string.IsNullOrWhiteSpace(modelPath) || !File.Exists(modelPath))
         {
             throw new FileNotFoundException($"The selected local Whisper model '{request.Settings.WhisperCppModelId}' is not installed or was not found.");
@@ -83,40 +83,6 @@ public sealed class WhisperCppBatchTranscriptionProvider : IBatchTranscriptionPr
         }
 
         return new BatchTranscriptionResult(standardOutput.Trim());
-    }
-
-    private static string ResolveExecutablePath(TranscriptionSettings settings)
-    {
-        if (!string.IsNullOrWhiteSpace(settings.WhisperCppExecutablePathOverride))
-        {
-            return settings.WhisperCppExecutablePathOverride.Trim();
-        }
-
-        return Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "tts",
-            "tools",
-            "whisper.cpp",
-            "v1.8.6",
-            "Release",
-            "whisper-cli.exe");
-    }
-
-    private static string ResolveModelPath(TranscriptionSettings settings)
-    {
-        if (!string.IsNullOrWhiteSpace(settings.WhisperModelPathOverride))
-        {
-            return settings.WhisperModelPathOverride.Trim();
-        }
-
-        var modelFileName = WhisperCppModelCatalog.Resolve(settings.WhisperCppModelId).FileName;
-
-        return Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "tts",
-            "models",
-            "whisper",
-            modelFileName);
     }
 
     private static ProcessStartInfo BuildStartInfo(string executablePath, string modelPath, string audioFilePath, string language)

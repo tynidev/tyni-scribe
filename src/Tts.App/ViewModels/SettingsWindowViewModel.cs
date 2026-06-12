@@ -17,6 +17,7 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
     private readonly ISessionOrchestrator _sessionOrchestrator;
     private readonly IGlobalHotkeyService _hotkeyService;
     private readonly IAudioCaptureService _audioCaptureService;
+    private readonly IReadOnlyList<TranscriptionProviderOption> _availableTranscriptionProviders;
     private AppSettings _settings = new();
     private bool _isRefreshingMicrophones;
 
@@ -49,6 +50,9 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
 
     [ObservableProperty]
     private string _selectedTranscriptionProviderId = string.Empty;
+
+    [ObservableProperty]
+    private bool _isWhisperCppProviderSelected = true;
 
     [ObservableProperty]
     private string _selectedAudioProcessorProviderId = string.Empty;
@@ -87,12 +91,17 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         IAppSettingsStore settingsStore,
         ISessionOrchestrator sessionOrchestrator,
         IGlobalHotkeyService hotkeyService,
-        IAudioCaptureService audioCaptureService)
+        IAudioCaptureService audioCaptureService,
+        IEnumerable<IBatchTranscriptionProvider> batchTranscriptionProviders)
     {
         _settingsStore = settingsStore;
         _sessionOrchestrator = sessionOrchestrator;
         _hotkeyService = hotkeyService;
         _audioCaptureService = audioCaptureService;
+        _availableTranscriptionProviders = batchTranscriptionProviders
+            .Select(provider => new TranscriptionProviderOption(provider.Metadata.Id, provider.Metadata.DisplayName))
+            .OrderBy(provider => provider.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+            .ToArray();
 
         SessionState = _sessionOrchestrator.State.ToString();
         SessionStatus = _sessionOrchestrator.StatusMessage;
@@ -110,6 +119,8 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
     }
 
     public ObservableCollection<MicrophoneDeviceOption> MicrophoneDevices { get; } = new();
+
+    public ObservableCollection<TranscriptionProviderOption> TranscriptionProviders { get; } = new();
 
     public ObservableCollection<TranscriptionModelOption> TranscriptionModels { get; } = new()
     {
@@ -137,13 +148,14 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         var selectedMicrophoneDeviceId = _settings.SelectedMicrophoneDeviceId ?? string.Empty;
 
         ConfigVersion = _settings.ConfigVersion;
+        LoadTranscriptionProviders();
         await RefreshMicrophonesAsync(selectedMicrophoneDeviceId);
         SelectedMicrophoneDeviceId = MicrophoneDevices.Any(device => device.Id == selectedMicrophoneDeviceId)
             ? selectedMicrophoneDeviceId
             : string.Empty;
         StartStopHotkey = _settings.StartStopHotkey.Gesture;
         CancelHotkey = _settings.CancelHotkey.Gesture;
-        SelectedTranscriptionProviderId = _settings.SelectedTranscriptionProviderId;
+        SelectedTranscriptionProviderId = ResolveSelectedTranscriptionProviderId(_settings.SelectedTranscriptionProviderId);
         SelectedAudioProcessorProviderId = _settings.SelectedAudioProcessorProviderId;
         SelectedWhisperCppModelId = TranscriptionModels.Any(model => model.Id == _settings.Transcription.WhisperCppModelId)
             ? _settings.Transcription.WhisperCppModelId
@@ -281,7 +293,7 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
                 : SelectedMicrophoneDeviceId.Trim(),
             StartStopHotkey = HotkeySettings.FromGesture(StartStopHotkey.Trim()),
             CancelHotkey = HotkeySettings.FromGesture(CancelHotkey.Trim()),
-            SelectedTranscriptionProviderId = SelectedTranscriptionProviderId.Trim(),
+            SelectedTranscriptionProviderId = ResolveSelectedTranscriptionProviderId(SelectedTranscriptionProviderId),
             SelectedAudioProcessorProviderId = SelectedAudioProcessorProviderId.Trim(),
             Transcription = new TranscriptionSettings
             {
@@ -315,6 +327,43 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         _settings = nextSettings;
         await _settingsStore.SaveAsync(_settings);
         StatusMessage = "Settings saved";
+    }
+
+    private void LoadTranscriptionProviders()
+    {
+        TranscriptionProviders.Clear();
+
+        foreach (var provider in _availableTranscriptionProviders)
+        {
+            TranscriptionProviders.Add(provider);
+        }
+    }
+
+    private string ResolveSelectedTranscriptionProviderId(string providerId)
+    {
+        if (TranscriptionProviders.Any(provider => provider.Id.Equals(providerId, StringComparison.OrdinalIgnoreCase)))
+        {
+            return providerId;
+        }
+
+        if (TranscriptionProviders.Any(provider => provider.Id.Equals(WhisperCppBatchTranscriptionProvider.ProviderId, StringComparison.OrdinalIgnoreCase)))
+        {
+            return WhisperCppBatchTranscriptionProvider.ProviderId;
+        }
+
+        return TranscriptionProviders.FirstOrDefault()?.Id ?? providerId.Trim();
+    }
+
+    partial void OnSelectedTranscriptionProviderIdChanged(string value)
+    {
+        IsWhisperCppProviderSelected = IsWhisperCppProvider(value);
+    }
+
+    private static bool IsWhisperCppProvider(string providerId)
+    {
+        return providerId.Equals(WhisperCppBatchTranscriptionProvider.ProviderId, StringComparison.OrdinalIgnoreCase)
+            || providerId.Equals(WhisperWarmBatchTranscriptionProvider.ProviderId, StringComparison.OrdinalIgnoreCase)
+            || providerId.Equals(WhisperNativeBatchTranscriptionProvider.ProviderId, StringComparison.OrdinalIgnoreCase);
     }
 
     private void OnSessionStateChanged(object? sender, SessionStateChangedEventArgs eventArgs)
