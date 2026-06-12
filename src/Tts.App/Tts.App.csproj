@@ -14,10 +14,19 @@
     <Content Include="Assets\speech-to-text-daemon.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="Services\Transcription\Scripts\faster_whisper_transcribe.py" Link="faster_whisper_transcribe.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup Condition="Exists('..\..\build\native\Tts.WhisperInterop\tts-whisper-interop.dll')">
     <Content Include="..\..\build\native\Tts.WhisperInterop\tts-whisper-interop.dll" Link="tts-whisper-interop.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('..\..\build\native\Tts.CTranslate2Interop\tts-ctranslate2-interop.dll')">
+    <Content Include="..\..\build\native\Tts.CTranslate2Interop\*.dll" Link="%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

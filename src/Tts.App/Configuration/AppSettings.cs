@@ -29,9 +29,15 @@ public sealed class TranscriptionSettings
 {
     public string WhisperCppModelId { get; set; } = "tiny-en";
 
+    public string FasterWhisperModelId { get; set; } = "tiny-en";
+
     public string? WhisperCppExecutablePathOverride { get; set; }
 
     public string? WhisperModelPathOverride { get; set; }
+
+    public string? FasterWhisperModelPathOverride { get; set; }
+
+    public string FasterWhisperComputeType { get; set; } = "float16";
 
     public string Language { get; set; } = "en";
 
@@ -42,8 +48,11 @@ public sealed class TranscriptionSettings
         return new TranscriptionSettings
         {
             WhisperCppModelId = WhisperCppModelId,
+            FasterWhisperModelId = FasterWhisperModelId,
             WhisperCppExecutablePathOverride = WhisperCppExecutablePathOverride,
             WhisperModelPathOverride = WhisperModelPathOverride,
+            FasterWhisperModelPathOverride = FasterWhisperModelPathOverride,
+            FasterWhisperComputeType = FasterWhisperComputeType,
             Language = Language,
             TimeoutSeconds = TimeoutSeconds
         };

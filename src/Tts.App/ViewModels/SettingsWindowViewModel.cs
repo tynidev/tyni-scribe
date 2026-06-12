@@ -323,8 +323,15 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
                 WhisperCppModelId = GetProviderSettingValue(
                     ProviderSettingKeys.WhisperCppModelId,
                     WhisperCppModelCatalog.TinyEnglishModelId),
+                FasterWhisperModelId = GetProviderSettingValue(
+                    ProviderSettingKeys.FasterWhisperModelId,
+                    FasterWhisperModelCatalog.TinyEnglishModelId),
                 WhisperCppExecutablePathOverride = _settings.Transcription.WhisperCppExecutablePathOverride,
                 WhisperModelPathOverride = _settings.Transcription.WhisperModelPathOverride,
+                FasterWhisperModelPathOverride = _settings.Transcription.FasterWhisperModelPathOverride,
+                FasterWhisperComputeType = GetProviderSettingValue(
+                    ProviderSettingKeys.FasterWhisperComputeType,
+                    FasterWhisperProviderSettings.DefaultComputeType),
                 Language = GetProviderSettingValue(ProviderSettingKeys.TranscriptionLanguage, _settings.Transcription.Language).Trim(),
                 TimeoutSeconds = GetProviderSettingIntValue(
                     ProviderSettingKeys.TranscriptionTimeoutSeconds,
@@ -387,6 +394,8 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
     {
         _providerSettingValues.Clear();
         _providerSettingValues[ProviderSettingKeys.WhisperCppModelId] = ResolveWhisperCppModelId(_settings.Transcription.WhisperCppModelId);
+        _providerSettingValues[ProviderSettingKeys.FasterWhisperModelId] = ResolveFasterWhisperModelId(_settings.Transcription.FasterWhisperModelId);
+        _providerSettingValues[ProviderSettingKeys.FasterWhisperComputeType] = _settings.Transcription.FasterWhisperComputeType;
         _providerSettingValues[ProviderSettingKeys.TranscriptionLanguage] = _settings.Transcription.Language;
         _providerSettingValues[ProviderSettingKeys.TranscriptionTimeoutSeconds] = _settings.Transcription.TimeoutSeconds.ToString(CultureInfo.InvariantCulture);
     }
@@ -472,6 +481,13 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         return WhisperCppModelCatalog.Models.Any(model => model.Id.Equals(modelId, StringComparison.OrdinalIgnoreCase))
             ? modelId
             : WhisperCppModelCatalog.TinyEnglishModelId;
+    }
+
+    private static string ResolveFasterWhisperModelId(string modelId)
+    {
+        return FasterWhisperModelCatalog.Models.Any(model => model.Id.Equals(modelId, StringComparison.OrdinalIgnoreCase))
+            ? modelId
+            : FasterWhisperModelCatalog.TinyEnglishModelId;
     }
 
     private string ResolveSelectedTranscriptionProviderId(string providerId)

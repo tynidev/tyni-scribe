@@ -31,9 +31,11 @@ public partial class App : System.Windows.Application
 				services.AddSingleton<IAppSettingsStore, JsonAppSettingsStore>();
 				services.AddSingleton<IAudioCaptureService, WasapiAudioCaptureService>();
 				services.AddSingleton<IAudioProcessingProvider, NoOpAudioProcessingProvider>();
+				services.AddSingleton<IFasterWhisperNativeEngine, FasterWhisperProcessEngine>();
 				services.AddSingleton<IWhisperNativeEngine, WhisperNativeEngine>();
 				services.AddSingleton<IWhisperWarmEngine, WhisperWarmServerEngine>();
 				services.AddSingleton<IBatchTranscriptionProvider, WhisperCppBatchTranscriptionProvider>();
+				services.AddSingleton<IBatchTranscriptionProvider, FasterWhisperBatchTranscriptionProvider>();
 				services.AddSingleton<IBatchTranscriptionProvider, WhisperWarmBatchTranscriptionProvider>();
 				services.AddSingleton<IBatchTranscriptionProvider, WhisperNativeBatchTranscriptionProvider>();
 				services.AddSingleton<IOutputProvider, ClipboardOutputProvider>();
