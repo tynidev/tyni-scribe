@@ -558,9 +558,12 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
                 outputStopwatch.Stop();
                 RecordOutputDuration(provider.Id, outputStopwatch.Elapsed);
 
-                var errorCategory = provider.Id.Equals(ClipboardOutputProvider.ProviderId, StringComparison.OrdinalIgnoreCase)
-                    ? "clipboard-output"
-                    : "output-provider";
+                var errorCategory = provider.Id switch
+                {
+                    var id when id.Equals(ClipboardOutputProvider.ProviderId, StringComparison.OrdinalIgnoreCase) => "clipboard-output",
+                    var id when id.Equals(PasteOutputProvider.ProviderId, StringComparison.OrdinalIgnoreCase) => "paste-output",
+                    _ => "output-provider"
+                };
 
                 return OutputWriteResult.Failure($"Could not write output through {provider.DisplayName}: {exception.Message}", errorCategory);
             }
@@ -569,7 +572,27 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
             RecordOutputDuration(provider.Id, outputStopwatch.Elapsed);
         }
 
-        return OutputWriteResult.Success("Output copied to clipboard.");
+        return OutputWriteResult.Success(GetOutputSuccessMessage(enabledProviderIds));
+    }
+
+    private static string GetOutputSuccessMessage(IReadOnlyList<string> enabledProviderIds)
+    {
+        if (enabledProviderIds.Count == 1)
+        {
+            var providerId = enabledProviderIds[0];
+
+            if (providerId.Equals(ClipboardOutputProvider.ProviderId, StringComparison.OrdinalIgnoreCase))
+            {
+                return "Output copied to clipboard.";
+            }
+
+            if (providerId.Equals(PasteOutputProvider.ProviderId, StringComparison.OrdinalIgnoreCase))
+            {
+                return "Output pasted.";
+            }
+        }
+
+        return "Output written.";
     }
 
     private void RecordOutputDuration(string providerId, TimeSpan duration)

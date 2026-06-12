@@ -132,13 +132,13 @@ Write final text to one or more destinations.
 
 The first output provider should be clipboard output. The design should allow more output providers later without changing the orchestrator.
 
-Initial provider:
+Initial providers:
 
 - Clipboard output: copies final text to the system clipboard.
+- Paste output: sets the clipboard to the final text and sends Ctrl+V to the active window.
 
 Possible future providers:
 
-- Paste output: set clipboard and send Ctrl+V.
 - File output: append or write transcript to a file.
 - Webhook output: send transcript to an HTTP endpoint.
 - Active-window typing output: simulate typing into the focused app.

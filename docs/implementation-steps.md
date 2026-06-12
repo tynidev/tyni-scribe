@@ -138,7 +138,7 @@ Future-step notes:
 - Future non-no-op processors should write outputs to app-owned temp locations and return `IsOriginalFile: false` so cleanup can delete them safely.
 - Later provider selection should expose audio processors separately from transcription providers so users can combine a processor with any compatible batch transcription provider.
 
-### 5. Clipboard Output Provider
+### 5. Clipboard And Paste Output Providers
 
 Status: `Complete`
 
@@ -146,7 +146,9 @@ Complete? Yes
 
 - Defined a small `IOutputProvider` interface with provider ID, display name, and final-text write operation.
 - Added `ClipboardOutputProvider` as the first output provider with ID `clipboard`.
+- Added `PasteOutputProvider` with ID `paste`; it sets the clipboard to the final transcript and sends Ctrl+V to the active window.
 - Registered clipboard output through dependency injection and kept `clipboard` as the default enabled output provider.
+- Registered paste output through dependency injection as an opt-in output provider.
 - Clipboard writes marshal to the WPF dispatcher so hotkey or tray-triggered sessions can safely write to the Windows clipboard.
 - Added `Outputting` state handling for final-text output and timed clipboard writes as `clipboard-output` when the provider runs.
 - Kept output providers final-text only; no partial streaming text is sent to output providers.
@@ -317,6 +319,7 @@ Complete? No
 | Multiple built-in transcription provider selection | Step 8 | `In Progress` | No |
 | Optional text cleanup provider | Step 9 | `Not Started` | No |
 | Clipboard output provider | Step 5 | `Complete` | Yes |
+| Paste output by setting clipboard and sending Ctrl+V | Step 5 | `Complete` | Yes |
 | Temp file cleanup | Step 10 | `In Progress` | No |
 | Timing CSV logging | Step 10 | `Complete` | Yes |
 | Sanitized file logging | Step 10 | `In Progress` | No |
@@ -328,7 +331,6 @@ These are intentionally out of first-build scope unless the plan changes.
 | Future Work | Status | Complete? |
 | --- | --- | --- |
 | Live cursor insertion | `Deferred` | No |
-| Paste output by setting clipboard and sending Ctrl+V | `Deferred` | No |
 | File output provider | `Deferred` | No |
 | Webhook output provider | `Deferred` | No |
 | Active-window typing output provider | `Deferred` | No |

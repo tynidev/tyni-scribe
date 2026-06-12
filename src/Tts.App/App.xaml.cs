@@ -39,6 +39,7 @@ public partial class App : System.Windows.Application
 				services.AddSingleton<IBatchTranscriptionProvider, WhisperWarmBatchTranscriptionProvider>();
 				services.AddSingleton<IBatchTranscriptionProvider, WhisperNativeBatchTranscriptionProvider>();
 				services.AddSingleton<IOutputProvider, ClipboardOutputProvider>();
+				services.AddSingleton<IOutputProvider, PasteOutputProvider>();
 				services.AddSingleton<ISessionTimingLogWriter, CsvSessionTimingLogWriter>();
 				services.AddSingleton<ISessionOrchestrator, SessionOrchestrator>();
 				services.AddSingleton<GlobalHotkeyService>();
