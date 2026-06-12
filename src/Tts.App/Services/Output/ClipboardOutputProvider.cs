@@ -1,4 +1,5 @@
 using System.Windows.Threading;
+using Tts.App.Services;
 using WpfClipboard = System.Windows.Clipboard;
 using WpfApplication = System.Windows.Application;
 
@@ -11,6 +12,10 @@ public sealed class ClipboardOutputProvider : IOutputProvider
     public string Id => ProviderId;
 
     public string DisplayName => "Clipboard";
+
+    public string Description => "Copies final transcript text to the Windows clipboard.";
+
+    public IReadOnlyList<ProviderSettingDescriptor> SettingDescriptors { get; } = Array.Empty<ProviderSettingDescriptor>();
 
     public async Task WriteAsync(string text, OutputProviderContext context, CancellationToken cancellationToken = default)
     {

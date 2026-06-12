@@ -1,4 +1,5 @@
 using System.IO;
+using Tts.App.Services;
 
 namespace Tts.App.Services.Transcription;
 
@@ -17,7 +18,10 @@ public sealed class WhisperWarmBatchTranscriptionProvider : IBatchTranscriptionP
         ProviderId,
         "whisper.cpp warm local",
         TranscriptionMode.Batch,
-        RequiresEndpoint: false);
+        RequiresEndpoint: false,
+        "Keeps a local whisper.cpp server warm between recordings.");
+
+    public IReadOnlyList<ProviderSettingDescriptor> SettingDescriptors => WhisperCppProviderSettings.Descriptors;
 
     public async Task<BatchTranscriptionResult> TranscribeAsync(BatchTranscriptionRequest request, CancellationToken cancellationToken = default)
     {

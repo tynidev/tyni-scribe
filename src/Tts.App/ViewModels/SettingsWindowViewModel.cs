@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -7,6 +8,8 @@ using CommunityToolkit.Mvvm.Input;
 using Tts.App.Configuration;
 using Tts.App.Services;
 using Tts.App.Services.Audio;
+using Tts.App.Services.AudioProcessing;
+using Tts.App.Services.Output;
 using Tts.App.Services.Transcription;
 
 namespace Tts.App.ViewModels;
@@ -18,6 +21,12 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
     private readonly IGlobalHotkeyService _hotkeyService;
     private readonly IAudioCaptureService _audioCaptureService;
     private readonly IReadOnlyList<TranscriptionProviderOption> _availableTranscriptionProviders;
+    private readonly IReadOnlyList<AudioProcessingProviderOption> _availableAudioProcessingProviders;
+    private readonly IReadOnlyList<OutputProviderOption> _availableOutputProviders;
+    private readonly IReadOnlyDictionary<string, IReadOnlyList<ProviderSettingDescriptor>> _transcriptionProviderSettings;
+    private readonly IReadOnlyDictionary<string, IReadOnlyList<ProviderSettingDescriptor>> _audioProcessingProviderSettings;
+    private readonly IReadOnlyDictionary<string, IReadOnlyList<ProviderSettingDescriptor>> _outputProviderSettings;
+    private readonly Dictionary<string, string> _providerSettingValues = new(StringComparer.OrdinalIgnoreCase);
     private AppSettings _settings = new();
     private bool _isRefreshingMicrophones;
 
@@ -40,9 +49,6 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
     private bool _isLevelMonitoring;
 
     [ObservableProperty]
-    private string _levelMonitoringButtonText = "Start Meter";
-
-    [ObservableProperty]
     private string _startStopHotkey = string.Empty;
 
     [ObservableProperty]
@@ -52,19 +58,13 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
     private string _selectedTranscriptionProviderId = string.Empty;
 
     [ObservableProperty]
-    private bool _isWhisperCppProviderSelected = true;
+    private string _selectedTranscriptionProviderDescription = string.Empty;
 
     [ObservableProperty]
     private string _selectedAudioProcessorProviderId = string.Empty;
 
     [ObservableProperty]
-    private string _selectedWhisperCppModelId = string.Empty;
-
-    [ObservableProperty]
-    private string _transcriptionLanguage = string.Empty;
-
-    [ObservableProperty]
-    private int _transcriptionTimeoutSeconds;
+    private string _selectedAudioProcessorProviderDescription = string.Empty;
 
     [ObservableProperty]
     private bool _isCleanupEnabled;
@@ -73,7 +73,10 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
     private string _cleanupPrompt = string.Empty;
 
     [ObservableProperty]
-    private string _enabledOutputProviders = string.Empty;
+    private string _selectedOutputProviderId = string.Empty;
+
+    [ObservableProperty]
+    private string _selectedOutputProviderDescription = string.Empty;
 
     [ObservableProperty]
     private string _statusMessage = "Ready";
@@ -92,16 +95,42 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         ISessionOrchestrator sessionOrchestrator,
         IGlobalHotkeyService hotkeyService,
         IAudioCaptureService audioCaptureService,
-        IEnumerable<IBatchTranscriptionProvider> batchTranscriptionProviders)
+        IEnumerable<IBatchTranscriptionProvider> batchTranscriptionProviders,
+        IEnumerable<IAudioProcessingProvider> audioProcessingProviders,
+        IEnumerable<IOutputProvider> outputProviders)
     {
+        var transcriptionProviderList = batchTranscriptionProviders.ToArray();
+        var audioProcessingProviderList = audioProcessingProviders.ToArray();
+        var outputProviderList = outputProviders.ToArray();
+
         _settingsStore = settingsStore;
         _sessionOrchestrator = sessionOrchestrator;
         _hotkeyService = hotkeyService;
         _audioCaptureService = audioCaptureService;
-        _availableTranscriptionProviders = batchTranscriptionProviders
-            .Select(provider => new TranscriptionProviderOption(provider.Metadata.Id, provider.Metadata.DisplayName))
+        _availableTranscriptionProviders = transcriptionProviderList
+            .Select(provider => new TranscriptionProviderOption(provider.Metadata.Id, provider.Metadata.DisplayName, provider.Metadata.Description))
             .OrderBy(provider => provider.DisplayName, StringComparer.CurrentCultureIgnoreCase)
             .ToArray();
+        _availableAudioProcessingProviders = audioProcessingProviderList
+            .Select(provider => new AudioProcessingProviderOption(provider.Metadata.Id, provider.Metadata.DisplayName, provider.Metadata.Description))
+            .OrderBy(provider => provider.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+            .ToArray();
+        _availableOutputProviders = outputProviderList
+            .Select(provider => new OutputProviderOption(provider.Id, provider.DisplayName, provider.Description))
+            .OrderBy(provider => provider.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+            .ToArray();
+        _transcriptionProviderSettings = transcriptionProviderList.ToDictionary(
+            provider => provider.Metadata.Id,
+            provider => provider.SettingDescriptors,
+            StringComparer.OrdinalIgnoreCase);
+        _audioProcessingProviderSettings = audioProcessingProviderList.ToDictionary(
+            provider => provider.Metadata.Id,
+            provider => provider.SettingDescriptors,
+            StringComparer.OrdinalIgnoreCase);
+        _outputProviderSettings = outputProviderList.ToDictionary(
+            provider => provider.Id,
+            provider => provider.SettingDescriptors,
+            StringComparer.OrdinalIgnoreCase);
 
         SessionState = _sessionOrchestrator.State.ToString();
         SessionStatus = _sessionOrchestrator.StatusMessage;
@@ -114,7 +143,6 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         LoadCommand = new AsyncRelayCommand(LoadAsync);
         SaveCommand = new AsyncRelayCommand(SaveAsync);
         RefreshMicrophonesCommand = new AsyncRelayCommand(RefreshMicrophonesAsync);
-        ToggleLevelMonitoringCommand = new AsyncRelayCommand(ToggleLevelMonitoringAsync);
         OpenSettingsFolderCommand = new RelayCommand(OpenSettingsFolder);
     }
 
@@ -122,13 +150,19 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
 
     public ObservableCollection<TranscriptionProviderOption> TranscriptionProviders { get; } = new();
 
-    public ObservableCollection<TranscriptionModelOption> TranscriptionModels { get; } = new()
-    {
-        new TranscriptionModelOption(WhisperCppModelCatalog.TinyEnglishModelId, "Tiny English (fastest)"),
-        new TranscriptionModelOption(WhisperCppModelCatalog.BaseEnglishModelId, "Base English (balanced)"),
-        new TranscriptionModelOption(WhisperCppModelCatalog.SmallEnglishModelId, "Small English (better accuracy)"),
-        new TranscriptionModelOption(WhisperCppModelCatalog.LargeV3TurboModelId, "Large v3 Turbo (best local quality)")
-    };
+    public ObservableCollection<AudioProcessingProviderOption> AudioProcessingProviders { get; } = new();
+
+    public ObservableCollection<OutputProviderOption> OutputProviders { get; } = new();
+
+    public ObservableCollection<ProviderSettingViewModel> TranscriptionProviderSettings { get; } = new();
+
+    public ObservableCollection<ProviderSettingViewModel> CompactTranscriptionProviderSettings { get; } = new();
+
+    public ObservableCollection<ProviderSettingViewModel> FullWidthTranscriptionProviderSettings { get; } = new();
+
+    public ObservableCollection<ProviderSettingViewModel> AudioProcessingProviderSettings { get; } = new();
+
+    public ObservableCollection<ProviderSettingViewModel> OutputProviderSettings { get; } = new();
 
     public string ConfigPath => _settingsStore.SettingsFilePath;
 
@@ -138,8 +172,6 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
 
     public IAsyncRelayCommand RefreshMicrophonesCommand { get; }
 
-    public IAsyncRelayCommand ToggleLevelMonitoringCommand { get; }
-
     public IRelayCommand OpenSettingsFolderCommand { get; }
 
     private async Task LoadAsync()
@@ -148,7 +180,10 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         var selectedMicrophoneDeviceId = _settings.SelectedMicrophoneDeviceId ?? string.Empty;
 
         ConfigVersion = _settings.ConfigVersion;
+        LoadProviderSettingValuesFromSettings();
         LoadTranscriptionProviders();
+        LoadAudioProcessingProviders();
+        LoadOutputProviders();
         await RefreshMicrophonesAsync(selectedMicrophoneDeviceId);
         SelectedMicrophoneDeviceId = MicrophoneDevices.Any(device => device.Id == selectedMicrophoneDeviceId)
             ? selectedMicrophoneDeviceId
@@ -156,15 +191,11 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         StartStopHotkey = _settings.StartStopHotkey.Gesture;
         CancelHotkey = _settings.CancelHotkey.Gesture;
         SelectedTranscriptionProviderId = ResolveSelectedTranscriptionProviderId(_settings.SelectedTranscriptionProviderId);
-        SelectedAudioProcessorProviderId = _settings.SelectedAudioProcessorProviderId;
-        SelectedWhisperCppModelId = TranscriptionModels.Any(model => model.Id == _settings.Transcription.WhisperCppModelId)
-            ? _settings.Transcription.WhisperCppModelId
-            : WhisperCppModelCatalog.TinyEnglishModelId;
-        TranscriptionLanguage = _settings.Transcription.Language;
-        TranscriptionTimeoutSeconds = _settings.Transcription.TimeoutSeconds;
+        SelectedAudioProcessorProviderId = ResolveSelectedAudioProcessorProviderId(_settings.SelectedAudioProcessorProviderId);
         IsCleanupEnabled = _settings.Cleanup.IsEnabled;
         CleanupPrompt = _settings.Cleanup.Prompt;
-        EnabledOutputProviders = string.Join(", ", _settings.EnabledOutputProviderIds);
+        SelectedOutputProviderId = ResolveSelectedOutputProviderId(_settings.EnabledOutputProviderIds.FirstOrDefault() ?? string.Empty);
+        await StartLevelMonitoringAsync();
         StatusMessage = "Settings loaded";
     }
 
@@ -235,30 +266,17 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         }
     }
 
-    private async Task ToggleLevelMonitoringAsync()
-    {
-        if (IsLevelMonitoring)
-        {
-            await StopLevelMonitoringAsync();
-            return;
-        }
-
-        await StartLevelMonitoringAsync();
-    }
-
     private async Task StartLevelMonitoringAsync()
     {
         try
         {
             await _audioCaptureService.StartLevelMonitoringAsync(NormalizeMicrophoneDeviceId(SelectedMicrophoneDeviceId));
             IsLevelMonitoring = true;
-            LevelMonitoringButtonText = "Stop Meter";
             MicrophoneStatus = "Level meter active.";
         }
         catch (Exception exception)
         {
             IsLevelMonitoring = false;
-            LevelMonitoringButtonText = "Start Meter";
             MicrophoneStatus = $"Could not start level meter: {exception.Message}";
         }
     }
@@ -277,7 +295,6 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         finally
         {
             IsLevelMonitoring = false;
-            LevelMonitoringButtonText = "Start Meter";
             MicrophoneLevel = 0;
             MicrophoneLevelText = "0%";
         }
@@ -285,6 +302,12 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
 
     private async Task SaveAsync()
     {
+        CaptureProviderSettingRows(TranscriptionProviderSettings);
+        CaptureProviderSettingRows(CompactTranscriptionProviderSettings);
+        CaptureProviderSettingRows(FullWidthTranscriptionProviderSettings);
+        CaptureProviderSettingRows(AudioProcessingProviderSettings);
+        CaptureProviderSettingRows(OutputProviderSettings);
+
         var nextSettings = new AppSettings
         {
             ConfigVersion = AppSettings.CurrentConfigVersion,
@@ -294,14 +317,18 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
             StartStopHotkey = HotkeySettings.FromGesture(StartStopHotkey.Trim()),
             CancelHotkey = HotkeySettings.FromGesture(CancelHotkey.Trim()),
             SelectedTranscriptionProviderId = ResolveSelectedTranscriptionProviderId(SelectedTranscriptionProviderId),
-            SelectedAudioProcessorProviderId = SelectedAudioProcessorProviderId.Trim(),
+            SelectedAudioProcessorProviderId = ResolveSelectedAudioProcessorProviderId(SelectedAudioProcessorProviderId),
             Transcription = new TranscriptionSettings
             {
-                WhisperCppModelId = SelectedWhisperCppModelId.Trim(),
+                WhisperCppModelId = GetProviderSettingValue(
+                    ProviderSettingKeys.WhisperCppModelId,
+                    WhisperCppModelCatalog.TinyEnglishModelId),
                 WhisperCppExecutablePathOverride = _settings.Transcription.WhisperCppExecutablePathOverride,
                 WhisperModelPathOverride = _settings.Transcription.WhisperModelPathOverride,
-                Language = TranscriptionLanguage.Trim(),
-                TimeoutSeconds = TranscriptionTimeoutSeconds
+                Language = GetProviderSettingValue(ProviderSettingKeys.TranscriptionLanguage, _settings.Transcription.Language).Trim(),
+                TimeoutSeconds = GetProviderSettingIntValue(
+                    ProviderSettingKeys.TranscriptionTimeoutSeconds,
+                    _settings.Transcription.TimeoutSeconds)
             },
             Cleanup = new CleanupSettings
             {
@@ -309,10 +336,7 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
                 ProviderId = _settings.Cleanup.ProviderId,
                 Prompt = CleanupPrompt.Trim()
             },
-            EnabledOutputProviderIds = EnabledOutputProviders
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .DefaultIfEmpty("clipboard")
-                .ToList(),
+            EnabledOutputProviderIds = new List<string> { ResolveSelectedOutputProviderId(SelectedOutputProviderId) },
             SettingsWindow = _settings.SettingsWindow
         };
 
@@ -339,6 +363,117 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         }
     }
 
+    private void LoadAudioProcessingProviders()
+    {
+        AudioProcessingProviders.Clear();
+
+        foreach (var provider in _availableAudioProcessingProviders)
+        {
+            AudioProcessingProviders.Add(provider);
+        }
+    }
+
+    private void LoadOutputProviders()
+    {
+        OutputProviders.Clear();
+
+        foreach (var provider in _availableOutputProviders)
+        {
+            OutputProviders.Add(provider);
+        }
+    }
+
+    private void LoadProviderSettingValuesFromSettings()
+    {
+        _providerSettingValues.Clear();
+        _providerSettingValues[ProviderSettingKeys.WhisperCppModelId] = ResolveWhisperCppModelId(_settings.Transcription.WhisperCppModelId);
+        _providerSettingValues[ProviderSettingKeys.TranscriptionLanguage] = _settings.Transcription.Language;
+        _providerSettingValues[ProviderSettingKeys.TranscriptionTimeoutSeconds] = _settings.Transcription.TimeoutSeconds.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private void CaptureProviderSettingRows(IEnumerable<ProviderSettingViewModel> settingRows)
+    {
+        foreach (var row in settingRows)
+        {
+            _providerSettingValues[row.Key] = row.Value;
+        }
+    }
+
+    private void LoadProviderSettingRows(
+        ObservableCollection<ProviderSettingViewModel> settingRows,
+        IReadOnlyDictionary<string, IReadOnlyList<ProviderSettingDescriptor>> providerSettings,
+        string providerId)
+    {
+        settingRows.Clear();
+
+        if (!providerSettings.TryGetValue(providerId, out var descriptors))
+        {
+            return;
+        }
+
+        foreach (var descriptor in descriptors)
+        {
+            settingRows.Add(new ProviderSettingViewModel(descriptor, GetInitialProviderSettingValue(descriptor)));
+        }
+    }
+
+    private void LoadTranscriptionProviderSettingRows(string providerId)
+    {
+        TranscriptionProviderSettings.Clear();
+        CompactTranscriptionProviderSettings.Clear();
+        FullWidthTranscriptionProviderSettings.Clear();
+
+        if (!_transcriptionProviderSettings.TryGetValue(providerId, out var descriptors))
+        {
+            return;
+        }
+
+        foreach (var descriptor in descriptors)
+        {
+            var row = new ProviderSettingViewModel(descriptor, GetInitialProviderSettingValue(descriptor));
+            TranscriptionProviderSettings.Add(row);
+
+            if (row.IsCompact)
+            {
+                CompactTranscriptionProviderSettings.Add(row);
+                continue;
+            }
+
+            FullWidthTranscriptionProviderSettings.Add(row);
+        }
+    }
+
+    private string GetInitialProviderSettingValue(ProviderSettingDescriptor descriptor)
+    {
+        if (_providerSettingValues.TryGetValue(descriptor.Key, out var value))
+        {
+            return value;
+        }
+
+        return descriptor.Options?.FirstOrDefault()?.Value ?? string.Empty;
+    }
+
+    private string GetProviderSettingValue(string key, string fallback)
+    {
+        return _providerSettingValues.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value)
+            ? value.Trim()
+            : fallback;
+    }
+
+    private int GetProviderSettingIntValue(string key, int fallback)
+    {
+        return int.TryParse(GetProviderSettingValue(key, fallback.ToString(CultureInfo.InvariantCulture)), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) && value > 0
+            ? value
+            : fallback;
+    }
+
+    private static string ResolveWhisperCppModelId(string modelId)
+    {
+        return WhisperCppModelCatalog.Models.Any(model => model.Id.Equals(modelId, StringComparison.OrdinalIgnoreCase))
+            ? modelId
+            : WhisperCppModelCatalog.TinyEnglishModelId;
+    }
+
     private string ResolveSelectedTranscriptionProviderId(string providerId)
     {
         if (TranscriptionProviders.Any(provider => provider.Id.Equals(providerId, StringComparison.OrdinalIgnoreCase)))
@@ -354,16 +489,57 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         return TranscriptionProviders.FirstOrDefault()?.Id ?? providerId.Trim();
     }
 
-    partial void OnSelectedTranscriptionProviderIdChanged(string value)
+    private string ResolveSelectedAudioProcessorProviderId(string providerId)
     {
-        IsWhisperCppProviderSelected = IsWhisperCppProvider(value);
+        if (AudioProcessingProviders.Any(provider => provider.Id.Equals(providerId, StringComparison.OrdinalIgnoreCase)))
+        {
+            return providerId;
+        }
+
+        if (AudioProcessingProviders.Any(provider => provider.Id.Equals(NoOpAudioProcessingProvider.ProviderId, StringComparison.OrdinalIgnoreCase)))
+        {
+            return NoOpAudioProcessingProvider.ProviderId;
+        }
+
+        return AudioProcessingProviders.FirstOrDefault()?.Id ?? providerId.Trim();
     }
 
-    private static bool IsWhisperCppProvider(string providerId)
+    private string ResolveSelectedOutputProviderId(string providerId)
     {
-        return providerId.Equals(WhisperCppBatchTranscriptionProvider.ProviderId, StringComparison.OrdinalIgnoreCase)
-            || providerId.Equals(WhisperWarmBatchTranscriptionProvider.ProviderId, StringComparison.OrdinalIgnoreCase)
-            || providerId.Equals(WhisperNativeBatchTranscriptionProvider.ProviderId, StringComparison.OrdinalIgnoreCase);
+        if (OutputProviders.Any(provider => provider.Id.Equals(providerId, StringComparison.OrdinalIgnoreCase)))
+        {
+            return providerId;
+        }
+
+        if (OutputProviders.Any(provider => provider.Id.Equals(ClipboardOutputProvider.ProviderId, StringComparison.OrdinalIgnoreCase)))
+        {
+            return ClipboardOutputProvider.ProviderId;
+        }
+
+        return OutputProviders.FirstOrDefault()?.Id ?? providerId.Trim();
+    }
+
+    partial void OnSelectedTranscriptionProviderIdChanged(string value)
+    {
+        CaptureProviderSettingRows(TranscriptionProviderSettings);
+        CaptureProviderSettingRows(CompactTranscriptionProviderSettings);
+        CaptureProviderSettingRows(FullWidthTranscriptionProviderSettings);
+        SelectedTranscriptionProviderDescription = TranscriptionProviders.FirstOrDefault(provider => provider.Id.Equals(value, StringComparison.OrdinalIgnoreCase))?.Description ?? string.Empty;
+        LoadTranscriptionProviderSettingRows(value);
+    }
+
+    partial void OnSelectedAudioProcessorProviderIdChanged(string value)
+    {
+        CaptureProviderSettingRows(AudioProcessingProviderSettings);
+        SelectedAudioProcessorProviderDescription = AudioProcessingProviders.FirstOrDefault(provider => provider.Id.Equals(value, StringComparison.OrdinalIgnoreCase))?.Description ?? string.Empty;
+        LoadProviderSettingRows(AudioProcessingProviderSettings, _audioProcessingProviderSettings, value);
+    }
+
+    partial void OnSelectedOutputProviderIdChanged(string value)
+    {
+        CaptureProviderSettingRows(OutputProviderSettings);
+        SelectedOutputProviderDescription = OutputProviders.FirstOrDefault(provider => provider.Id.Equals(value, StringComparison.OrdinalIgnoreCase))?.Description ?? string.Empty;
+        LoadProviderSettingRows(OutputProviderSettings, _outputProviderSettings, value);
     }
 
     private void OnSessionStateChanged(object? sender, SessionStateChangedEventArgs eventArgs)
@@ -376,8 +552,12 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
             if (eventArgs.CurrentState == AppSessionState.Recording)
             {
                 IsLevelMonitoring = false;
-                LevelMonitoringButtonText = "Start Meter";
                 MicrophoneStatus = "Recording level active.";
+            }
+
+            if (eventArgs.CurrentState == AppSessionState.Idle && !IsLevelMonitoring)
+            {
+                _ = StartLevelMonitoringAsync();
             }
         });
     }

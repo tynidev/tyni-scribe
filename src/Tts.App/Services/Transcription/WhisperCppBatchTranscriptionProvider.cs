@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using Tts.App.Configuration;
+using Tts.App.Services;
 
 namespace Tts.App.Services.Transcription;
 
@@ -12,7 +13,10 @@ public sealed class WhisperCppBatchTranscriptionProvider : IBatchTranscriptionPr
         ProviderId,
         "whisper.cpp local",
         TranscriptionMode.Batch,
-        RequiresEndpoint: false);
+        RequiresEndpoint: false,
+        "Runs whisper-cli.exe for each completed recording.");
+
+    public IReadOnlyList<ProviderSettingDescriptor> SettingDescriptors => WhisperCppProviderSettings.Descriptors;
 
     public async Task<BatchTranscriptionResult> TranscribeAsync(BatchTranscriptionRequest request, CancellationToken cancellationToken = default)
     {

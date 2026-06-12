@@ -20,124 +20,38 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Margin="0,0,0,18">
-            <TextBlock Text="Speech-to-Text Daemon"
-                       FontSize="22"
-                       FontWeight="SemiBold" />
-            <TextBlock Text="Settings"
-                       Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" />
-        </StackPanel>
+        <TextBlock Grid.Row="0"
+                   Margin="0,0,0,18"
+                   Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}"
+                   TextWrapping="Wrap">
+            <Run Text="{Binding SessionState}" />
+            <Run Text=" - " />
+            <Run Text="{Binding SessionStatus}" />
+        </TextBlock>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel>
-                <GroupBox Header="Configuration" Padding="14" Margin="0,0,0,14">
+                <GroupBox Header="Config" Padding="14" Margin="0,0,0,14">
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="180" />
+                            <ColumnDefinition Width="112" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="88" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,12,8" Text="Config version" />
-                        <TextBlock Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" Text="{Binding ConfigVersion}" />
+                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,12,0" Text="Start / Stop" />
+                        <TextBox Grid.Row="0" Grid.Column="1" Margin="0,0,12,0" Text="{Binding StartStopHotkey, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,12,8" Text="Config file" />
-                        <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,0,0,8" Text="{Binding ConfigPath}" TextWrapping="Wrap" />
-
-                        <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,12,8" Text="Transcription provider" />
-                        <ComboBox Grid.Row="2"
-                                  Grid.Column="1"
-                                  Margin="0,0,0,8"
-                                  ItemsSource="{Binding TranscriptionProviders}"
-                                  DisplayMemberPath="DisplayName"
-                                  SelectedValuePath="Id"
-                                  SelectedValue="{Binding SelectedTranscriptionProviderId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-
-                        <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,0,12,8" Text="Audio processor" />
-                        <TextBox Grid.Row="3" Grid.Column="1" Margin="0,0,0,8" Text="{Binding SelectedAudioProcessorProviderId, UpdateSourceTrigger=PropertyChanged}" />
-
-                        <TextBlock Grid.Row="4"
-                                   Grid.Column="0"
-                                   Margin="0,0,12,8"
-                                   Text="Whisper model"
-                                   Visibility="{Binding IsWhisperCppProviderSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                        <ComboBox Grid.Row="4"
-                                  Grid.Column="1"
-                                  Margin="0,0,0,8"
-                                  ItemsSource="{Binding TranscriptionModels}"
-                                  DisplayMemberPath="DisplayName"
-                                  SelectedValuePath="Id"
-                                  SelectedValue="{Binding SelectedWhisperCppModelId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                  Visibility="{Binding IsWhisperCppProviderSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
-
-                        <TextBlock Grid.Row="5"
-                                   Grid.Column="0"
-                                   Margin="0,0,12,8"
-                                   Text="Language"
-                                   Visibility="{Binding IsWhisperCppProviderSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                        <TextBox Grid.Row="5"
-                                 Grid.Column="1"
-                                 Margin="0,0,0,8"
-                                 Text="{Binding TranscriptionLanguage, UpdateSourceTrigger=PropertyChanged}"
-                                 Visibility="{Binding IsWhisperCppProviderSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
-
-                        <TextBlock Grid.Row="6"
-                                   Grid.Column="0"
-                                   Margin="0,0,12,8"
-                                   Text="Timeout seconds"
-                                   Visibility="{Binding IsWhisperCppProviderSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                        <TextBox Grid.Row="6"
-                                 Grid.Column="1"
-                                 Margin="0,0,0,8"
-                                 Text="{Binding TranscriptionTimeoutSeconds, UpdateSourceTrigger=PropertyChanged}"
-                                 Visibility="{Binding IsWhisperCppProviderSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
-
-                        <TextBlock Grid.Row="7" Grid.Column="0" Margin="0,0,12,0" Text="Output providers" />
-                        <TextBox Grid.Row="7" Grid.Column="1" Margin="0,0,0,8" Text="{Binding EnabledOutputProviders, UpdateSourceTrigger=PropertyChanged}" />
-
-                        <TextBlock Grid.Row="8" Grid.Column="0" Margin="0,0,12,8" Text="Session state" />
-                        <TextBlock Grid.Row="8" Grid.Column="1" Margin="0,0,0,8" Text="{Binding SessionState}" />
-
-                        <TextBlock Grid.Row="9" Grid.Column="0" Margin="0,0,12,8" Text="Session status" />
-                        <TextBlock Grid.Row="9" Grid.Column="1" Margin="0,0,0,8" Text="{Binding SessionStatus}" TextWrapping="Wrap" />
-
-                        <TextBlock Grid.Row="10" Grid.Column="0" Margin="0,0,12,0" Text="Hotkey status" />
-                        <TextBlock Grid.Row="10" Grid.Column="1" Text="{Binding HotkeyStatus}" TextWrapping="Wrap" />
+                        <TextBlock Grid.Row="0" Grid.Column="2" Margin="0,0,12,0" Text="Cancel" />
+                        <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding CancelHotkey, UpdateSourceTrigger=PropertyChanged}" />
                     </Grid>
                 </GroupBox>
 
-                <GroupBox Header="Hotkeys" Padding="14" Margin="0,0,0,14">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="180" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-
-                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,12,8" Text="Start / Stop" />
-                        <TextBox Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" Text="{Binding StartStopHotkey, UpdateSourceTrigger=PropertyChanged}" />
-
-                        <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,12,0" Text="Cancel" />
-                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding CancelHotkey, UpdateSourceTrigger=PropertyChanged}" />
-                    </Grid>
-                </GroupBox>
-
-                <GroupBox Header="Audio And Cleanup" Padding="14">
+                <GroupBox Header="Microphone" Padding="14" Margin="0,0,0,14">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="180" />
@@ -147,12 +61,30 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,12,8" Text="Microphone" />
-                        <Grid Grid.Row="0" Grid.Column="1" Margin="0,0,0,8">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,12,8" Text="Microphone status" />
+                        <TextBlock Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" Text="{Binding MicrophoneStatus}" TextWrapping="Wrap" />
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,12,8" Text="Input level" />
+                        <Grid Grid.Row="1" Grid.Column="1" Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="54" />
+                            </Grid.ColumnDefinitions>
+                            <ProgressBar Grid.Column="0"
+                                         Height="16"
+                                         Minimum="0"
+                                         Maximum="1"
+                                         Value="{Binding MicrophoneLevel}" />
+                            <TextBlock Grid.Column="1"
+                                       Margin="8,0,0,0"
+                                       VerticalAlignment="Center"
+                                       Text="{Binding MicrophoneLevelText}" />
+                        </Grid>
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,12,0" Text="Microphone" />
+                        <Grid Grid.Row="2" Grid.Column="1">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
@@ -169,40 +101,228 @@
                                     Content="Refresh" />
                         </Grid>
 
-                        <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,12,8" Text="Input level" />
-                        <Grid Grid.Row="1" Grid.Column="1" Margin="0,0,0,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="54" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <ProgressBar Grid.Column="0"
-                                         Height="16"
-                                         Minimum="0"
-                                         Maximum="1"
-                                         Value="{Binding MicrophoneLevel}" />
-                            <TextBlock Grid.Column="1"
-                                       Margin="8,0,0,0"
-                                       VerticalAlignment="Center"
-                                       Text="{Binding MicrophoneLevelText}" />
-                            <Button Grid.Column="2"
-                                    Padding="12,4"
-                                    Command="{Binding ToggleLevelMonitoringCommand}"
-                                    Content="{Binding LevelMonitoringButtonText}" />
-                        </Grid>
+                    </Grid>
+                </GroupBox>
 
-                        <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,12,8" Text="Microphone status" />
-                        <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,0,0,8" Text="{Binding MicrophoneStatus}" TextWrapping="Wrap" />
+                <GroupBox Header="Audio Processing" Padding="14" Margin="0,0,0,14">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,0,12,8" Text="Cleanup" />
-                        <CheckBox Grid.Row="3" Grid.Column="1" Margin="0,0,0,8" IsChecked="{Binding IsCleanupEnabled}" Content="Enabled" />
+                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,12,8" Text="Audio processing" />
+                        <ComboBox Grid.Row="0"
+                                  Grid.Column="1"
+                                  Margin="0,0,0,8"
+                                  ItemsSource="{Binding AudioProcessingProviders}"
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="Id"
+                                  SelectedValue="{Binding SelectedAudioProcessorProviderId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,0,12,0" Text="Cleanup prompt" />
-                        <TextBox Grid.Row="4" Grid.Column="1"
+                        <TextBlock Grid.Row="1"
+                                   Grid.Column="1"
+                                   Margin="0,0,0,8"
+                                   Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}"
+                                   Text="{Binding SelectedAudioProcessorProviderDescription}"
+                                   TextWrapping="Wrap" />
+
+                        <ItemsControl Grid.Row="2" Grid.ColumnSpan="2" ItemsSource="{Binding AudioProcessingProviderSettings}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="180" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Column="0" Margin="0,0,12,0" Text="{Binding DisplayName}" />
+                                        <Grid Grid.Column="1">
+                                            <ComboBox ItemsSource="{Binding Options}"
+                                                      DisplayMemberPath="DisplayName"
+                                                      SelectedValuePath="Value"
+                                                      SelectedValue="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Visibility="{Binding IsSelect, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                            <TextBox Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     Visibility="{Binding IsTextInput, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                            <TextBlock Text="{Binding Value}"
+                                                       Visibility="{Binding IsReadOnlyText, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                        </Grid>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                    </Grid>
+                </GroupBox>
+
+                <GroupBox Header="Transcription" Padding="14" Margin="0,0,0,14">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,12,8" Text="Transcription" />
+                        <ComboBox Grid.Row="0"
+                                  Grid.Column="1"
+                                  Margin="0,0,0,8"
+                                  ItemsSource="{Binding TranscriptionProviders}"
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="Id"
+                                  SelectedValue="{Binding SelectedTranscriptionProviderId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock Grid.Row="1"
+                                   Grid.Column="1"
+                                   Margin="0,0,0,8"
+                                   Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}"
+                                   Text="{Binding SelectedTranscriptionProviderDescription}"
+                                   TextWrapping="Wrap" />
+
+                        <ItemsControl Grid.Row="2" Grid.Column="1" ItemsSource="{Binding CompactTranscriptionProviderSettings}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Columns="3" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="0,0,12,8">
+                                        <TextBlock Margin="0,0,0,4" Text="{Binding DisplayName}" />
+                                        <Grid>
+                                            <ComboBox ItemsSource="{Binding Options}"
+                                                      DisplayMemberPath="DisplayName"
+                                                      SelectedValuePath="Value"
+                                                      SelectedValue="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Visibility="{Binding IsSelect, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                            <TextBox Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     Visibility="{Binding IsTextInput, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                            <TextBlock Text="{Binding Value}"
+                                                       Visibility="{Binding IsReadOnlyText, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                        </Grid>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <ItemsControl Grid.Row="3" Grid.Column="1" ItemsSource="{Binding FullWidthTranscriptionProviderSettings}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="180" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Column="0" Margin="0,0,12,0" Text="{Binding DisplayName}" />
+                                        <Grid Grid.Column="1">
+                                            <ComboBox ItemsSource="{Binding Options}"
+                                                      DisplayMemberPath="DisplayName"
+                                                      SelectedValuePath="Value"
+                                                      SelectedValue="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Visibility="{Binding IsSelect, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                            <TextBox Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     Visibility="{Binding IsTextInput, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                            <TextBlock Text="{Binding Value}"
+                                                       Visibility="{Binding IsReadOnlyText, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                        </Grid>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                    </Grid>
+                </GroupBox>
+
+                <GroupBox Header="Cleanup" Padding="14" Margin="0,0,0,14">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,12,8" Text="Cleanup" />
+                        <CheckBox Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" IsChecked="{Binding IsCleanupEnabled}" Content="Enabled" />
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,12,0" Text="Cleanup prompt" />
+                        <TextBox Grid.Row="1"
+                                 Grid.Column="1"
                                  MinHeight="80"
                                  Text="{Binding CleanupPrompt, UpdateSourceTrigger=PropertyChanged}"
                                  TextWrapping="Wrap"
                                  AcceptsReturn="True" />
+                    </Grid>
+                </GroupBox>
+
+                <GroupBox Header="Output" Padding="14">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,12,8" Text="Output" />
+                        <ComboBox Grid.Row="0"
+                                  Grid.Column="1"
+                                  Margin="0,0,0,8"
+                                  ItemsSource="{Binding OutputProviders}"
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="Id"
+                                  SelectedValue="{Binding SelectedOutputProviderId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock Grid.Row="1"
+                                   Grid.Column="1"
+                                   Margin="0,0,0,8"
+                                   Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}"
+                                   Text="{Binding SelectedOutputProviderDescription}"
+                                   TextWrapping="Wrap" />
+
+                        <ItemsControl Grid.Row="2" Grid.ColumnSpan="2" ItemsSource="{Binding OutputProviderSettings}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="180" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Column="0" Margin="0,0,12,0" Text="{Binding DisplayName}" />
+                                        <Grid Grid.Column="1">
+                                            <ComboBox ItemsSource="{Binding Options}"
+                                                      DisplayMemberPath="DisplayName"
+                                                      SelectedValuePath="Value"
+                                                      SelectedValue="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Visibility="{Binding IsSelect, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                            <TextBox Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     Visibility="{Binding IsTextInput, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                            <TextBlock Text="{Binding Value}"
+                                                       Visibility="{Binding IsReadOnlyText, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                        </Grid>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </Grid>
                 </GroupBox>
             </StackPanel>

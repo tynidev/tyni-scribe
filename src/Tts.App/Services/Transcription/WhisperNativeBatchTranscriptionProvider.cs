@@ -1,4 +1,5 @@
 using System.IO;
+using Tts.App.Services;
 
 namespace Tts.App.Services.Transcription;
 
@@ -17,7 +18,10 @@ public sealed class WhisperNativeBatchTranscriptionProvider : IBatchTranscriptio
         ProviderId,
         "whisper.cpp native local",
         TranscriptionMode.Batch,
-        RequiresEndpoint: false);
+        RequiresEndpoint: false,
+        "Runs the in-process native whisper.cpp interop engine.");
+
+    public IReadOnlyList<ProviderSettingDescriptor> SettingDescriptors => WhisperCppProviderSettings.Descriptors;
 
     public async Task<BatchTranscriptionResult> TranscribeAsync(BatchTranscriptionRequest request, CancellationToken cancellationToken = default)
     {
