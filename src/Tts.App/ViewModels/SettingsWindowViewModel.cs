@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -27,8 +28,11 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
     private readonly IReadOnlyDictionary<string, IReadOnlyList<ProviderSettingDescriptor>> _audioProcessingProviderSettings;
     private readonly IReadOnlyDictionary<string, IReadOnlyList<ProviderSettingDescriptor>> _outputProviderSettings;
     private readonly Dictionary<string, string> _providerSettingValues = new(StringComparer.OrdinalIgnoreCase);
+    private readonly SemaphoreSlim _saveLock = new(1, 1);
+    private CancellationTokenSource? _autoSaveCancellation;
     private AppSettings _settings = new();
     private bool _isRefreshingMicrophones;
+    private bool _isLoaded;
 
     [ObservableProperty]
     private int _configVersion;
@@ -176,6 +180,7 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
 
     private async Task LoadAsync()
     {
+        _isLoaded = false;
         _settings = await _settingsStore.LoadAsync();
         var selectedMicrophoneDeviceId = _settings.SelectedMicrophoneDeviceId ?? string.Empty;
 
@@ -196,6 +201,7 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         CleanupPrompt = _settings.Cleanup.Prompt;
         SelectedOutputProviderId = ResolveSelectedOutputProviderId(_settings.EnabledOutputProviderIds.FirstOrDefault() ?? string.Empty);
         await StartLevelMonitoringAsync();
+        _isLoaded = true;
         StatusMessage = "Settings loaded";
     }
 
@@ -300,8 +306,17 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         }
     }
 
-    private async Task SaveAsync()
+    private Task SaveAsync()
     {
+        return SaveSettingsAsync(CancellationToken.None);
+    }
+
+    private async Task SaveSettingsAsync(CancellationToken cancellationToken)
+    {
+        await _saveLock.WaitAsync(cancellationToken);
+
+        try
+        {
         CaptureProviderSettingRows(TranscriptionProviderSettings);
         CaptureProviderSettingRows(CompactTranscriptionProviderSettings);
         CaptureProviderSettingRows(FullWidthTranscriptionProviderSettings);
@@ -347,7 +362,7 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
             SettingsWindow = _settings.SettingsWindow
         };
 
-        var hotkeyResult = await _hotkeyService.ApplySettingsAsync(nextSettings);
+        var hotkeyResult = await _hotkeyService.ApplySettingsAsync(nextSettings, cancellationToken);
 
         if (!hotkeyResult.Succeeded)
         {
@@ -356,8 +371,13 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         }
 
         _settings = nextSettings;
-        await _settingsStore.SaveAsync(_settings);
+        await _settingsStore.SaveAsync(_settings, cancellationToken);
         StatusMessage = "Settings saved";
+        }
+        finally
+        {
+            _saveLock.Release();
+        }
     }
 
     private void LoadTranscriptionProviders()
@@ -413,7 +433,7 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         IReadOnlyDictionary<string, IReadOnlyList<ProviderSettingDescriptor>> providerSettings,
         string providerId)
     {
-        settingRows.Clear();
+        ClearProviderSettingRows(settingRows);
 
         if (!providerSettings.TryGetValue(providerId, out var descriptors))
         {
@@ -422,13 +442,13 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
 
         foreach (var descriptor in descriptors)
         {
-            settingRows.Add(new ProviderSettingViewModel(descriptor, GetInitialProviderSettingValue(descriptor)));
+            settingRows.Add(CreateProviderSettingRow(descriptor));
         }
     }
 
     private void LoadTranscriptionProviderSettingRows(string providerId)
     {
-        TranscriptionProviderSettings.Clear();
+        ClearProviderSettingRows(TranscriptionProviderSettings);
         CompactTranscriptionProviderSettings.Clear();
         FullWidthTranscriptionProviderSettings.Clear();
 
@@ -439,7 +459,7 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
 
         foreach (var descriptor in descriptors)
         {
-            var row = new ProviderSettingViewModel(descriptor, GetInitialProviderSettingValue(descriptor));
+            var row = CreateProviderSettingRow(descriptor);
             TranscriptionProviderSettings.Add(row);
 
             if (row.IsCompact)
@@ -449,6 +469,31 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
             }
 
             FullWidthTranscriptionProviderSettings.Add(row);
+        }
+    }
+
+    private ProviderSettingViewModel CreateProviderSettingRow(ProviderSettingDescriptor descriptor)
+    {
+        var row = new ProviderSettingViewModel(descriptor, GetInitialProviderSettingValue(descriptor));
+        row.PropertyChanged += OnProviderSettingRowPropertyChanged;
+        return row;
+    }
+
+    private void ClearProviderSettingRows(ObservableCollection<ProviderSettingViewModel> settingRows)
+    {
+        foreach (var row in settingRows)
+        {
+            row.PropertyChanged -= OnProviderSettingRowPropertyChanged;
+        }
+
+        settingRows.Clear();
+    }
+
+    private void OnProviderSettingRowPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
+    {
+        if (eventArgs.PropertyName == nameof(ProviderSettingViewModel.Value))
+        {
+            QueueAutoSave();
         }
     }
 
@@ -542,6 +587,7 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         CaptureProviderSettingRows(FullWidthTranscriptionProviderSettings);
         SelectedTranscriptionProviderDescription = TranscriptionProviders.FirstOrDefault(provider => provider.Id.Equals(value, StringComparison.OrdinalIgnoreCase))?.Description ?? string.Empty;
         LoadTranscriptionProviderSettingRows(value);
+        QueueAutoSave();
     }
 
     partial void OnSelectedAudioProcessorProviderIdChanged(string value)
@@ -549,6 +595,7 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         CaptureProviderSettingRows(AudioProcessingProviderSettings);
         SelectedAudioProcessorProviderDescription = AudioProcessingProviders.FirstOrDefault(provider => provider.Id.Equals(value, StringComparison.OrdinalIgnoreCase))?.Description ?? string.Empty;
         LoadProviderSettingRows(AudioProcessingProviderSettings, _audioProcessingProviderSettings, value);
+        QueueAutoSave();
     }
 
     partial void OnSelectedOutputProviderIdChanged(string value)
@@ -556,6 +603,7 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         CaptureProviderSettingRows(OutputProviderSettings);
         SelectedOutputProviderDescription = OutputProviders.FirstOrDefault(provider => provider.Id.Equals(value, StringComparison.OrdinalIgnoreCase))?.Description ?? string.Empty;
         LoadProviderSettingRows(OutputProviderSettings, _outputProviderSettings, value);
+        QueueAutoSave();
     }
 
     private void OnSessionStateChanged(object? sender, SessionStateChangedEventArgs eventArgs)
@@ -597,6 +645,60 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         if (IsLevelMonitoring && !_isRefreshingMicrophones)
         {
             _ = StartLevelMonitoringAsync();
+        }
+
+        QueueAutoSave();
+    }
+
+    partial void OnStartStopHotkeyChanged(string value)
+    {
+        QueueAutoSave();
+    }
+
+    partial void OnCancelHotkeyChanged(string value)
+    {
+        QueueAutoSave();
+    }
+
+    partial void OnIsCleanupEnabledChanged(bool value)
+    {
+        QueueAutoSave();
+    }
+
+    partial void OnCleanupPromptChanged(string value)
+    {
+        QueueAutoSave();
+    }
+
+    private void QueueAutoSave()
+    {
+        if (!_isLoaded)
+        {
+            return;
+        }
+
+        _autoSaveCancellation?.Cancel();
+        _autoSaveCancellation?.Dispose();
+        _autoSaveCancellation = new CancellationTokenSource();
+        var cancellationToken = _autoSaveCancellation.Token;
+
+        _ = AutoSaveAfterDelayAsync(cancellationToken);
+    }
+
+    private async Task AutoSaveAfterDelayAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
+            var operation = System.Windows.Application.Current.Dispatcher.InvokeAsync(() => SaveSettingsAsync(CancellationToken.None));
+            await await operation.Task;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            StatusMessage = $"Could not save settings: {exception.Message}";
         }
     }
 

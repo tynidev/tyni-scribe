@@ -11,13 +11,17 @@
         Loaded="OnLoaded">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <Style x:Key="SingleLineTextBoxStyle" TargetType="TextBox">
+            <Setter Property="MinHeight" Value="22" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="4,1" />
+        </Style>
     </Window.Resources>
 
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0"
@@ -43,48 +47,38 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,12,0" Text="Start / Stop" />
-                        <TextBox Grid.Row="0" Grid.Column="1" Margin="0,0,12,0" Text="{Binding StartStopHotkey, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,12,0" VerticalAlignment="Center" Text="Start / Stop" />
+                        <Button x:Name="StartStopHotkeyButton"
+                            Grid.Row="0"
+                            Grid.Column="1"
+                            Margin="0,0,12,0"
+                            Padding="8,3"
+                            HorizontalContentAlignment="Left"
+                            Click="OnStartStopHotkeyCaptureClicked"
+                            Content="{Binding StartStopHotkey}" />
 
-                        <TextBlock Grid.Row="0" Grid.Column="2" Margin="0,0,12,0" Text="Cancel" />
-                        <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding CancelHotkey, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Grid.Row="0" Grid.Column="2" Margin="0,0,12,0" VerticalAlignment="Center" Text="Cancel" />
+                        <Button x:Name="CancelHotkeyButton"
+                            Grid.Row="0"
+                            Grid.Column="3"
+                            Padding="8,3"
+                            HorizontalContentAlignment="Left"
+                            Click="OnCancelHotkeyCaptureClicked"
+                            Content="{Binding CancelHotkey}" />
                     </Grid>
                 </GroupBox>
 
                 <GroupBox Header="Microphone" Padding="14" Margin="0,0,0,14">
                     <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="180" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,12,8" Text="Microphone status" />
-                        <TextBlock Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" Text="{Binding MicrophoneStatus}" TextWrapping="Wrap" />
+                        <TextBlock Grid.Row="0" Margin="0,0,0,8" Text="{Binding MicrophoneStatus}" TextWrapping="Wrap" />
 
-                        <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,12,8" Text="Input level" />
-                        <Grid Grid.Row="1" Grid.Column="1" Margin="0,0,0,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="54" />
-                            </Grid.ColumnDefinitions>
-                            <ProgressBar Grid.Column="0"
-                                         Height="16"
-                                         Minimum="0"
-                                         Maximum="1"
-                                         Value="{Binding MicrophoneLevel}" />
-                            <TextBlock Grid.Column="1"
-                                       Margin="8,0,0,0"
-                                       VerticalAlignment="Center"
-                                       Text="{Binding MicrophoneLevelText}" />
-                        </Grid>
-
-                        <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,12,0" Text="Microphone" />
-                        <Grid Grid.Row="2" Grid.Column="1">
+                        <Grid Grid.Row="1" Margin="0,0,0,8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
@@ -101,15 +95,17 @@
                                     Content="Refresh" />
                         </Grid>
 
+                        <ProgressBar Grid.Row="2"
+                                     Height="16"
+                                     Minimum="0"
+                                     Maximum="1"
+                                     Value="{Binding MicrophoneLevel}" />
+
                     </Grid>
                 </GroupBox>
 
                 <GroupBox Header="Audio Processing" Padding="14" Margin="0,0,0,14">
                     <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="180" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -117,9 +113,7 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,12,8" Text="Audio processing" />
                         <ComboBox Grid.Row="0"
-                                  Grid.Column="1"
                                   Margin="0,0,0,8"
                                   ItemsSource="{Binding AudioProcessingProviders}"
                                   DisplayMemberPath="DisplayName"
@@ -127,13 +121,12 @@
                                   SelectedValue="{Binding SelectedAudioProcessorProviderId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
                         <TextBlock Grid.Row="1"
-                                   Grid.Column="1"
                                    Margin="0,0,0,8"
                                    Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}"
                                    Text="{Binding SelectedAudioProcessorProviderDescription}"
                                    TextWrapping="Wrap" />
 
-                        <ItemsControl Grid.Row="2" Grid.ColumnSpan="2" ItemsSource="{Binding AudioProcessingProviderSettings}">
+                        <ItemsControl Grid.Row="2" ItemsSource="{Binding AudioProcessingProviderSettings}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Grid Margin="0,0,0,8">
@@ -150,6 +143,7 @@
                                                       SelectedValue="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                       Visibility="{Binding IsSelect, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                             <TextBox Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     Style="{StaticResource SingleLineTextBoxStyle}"
                                                      Visibility="{Binding IsTextInput, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                             <TextBlock Text="{Binding Value}"
                                                        Visibility="{Binding IsReadOnlyText, Converter={StaticResource BooleanToVisibilityConverter}}" />
@@ -164,10 +158,6 @@
 
                 <GroupBox Header="Transcription" Padding="14" Margin="0,0,0,14">
                     <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="180" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -175,9 +165,7 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,12,8" Text="Transcription" />
                         <ComboBox Grid.Row="0"
-                                  Grid.Column="1"
                                   Margin="0,0,0,8"
                                   ItemsSource="{Binding TranscriptionProviders}"
                                   DisplayMemberPath="DisplayName"
@@ -185,13 +173,12 @@
                                   SelectedValue="{Binding SelectedTranscriptionProviderId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
                         <TextBlock Grid.Row="1"
-                                   Grid.Column="1"
                                    Margin="0,0,0,8"
                                    Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}"
                                    Text="{Binding SelectedTranscriptionProviderDescription}"
                                    TextWrapping="Wrap" />
 
-                        <ItemsControl Grid.Row="2" Grid.Column="1" ItemsSource="{Binding CompactTranscriptionProviderSettings}">
+                        <ItemsControl Grid.Row="2" ItemsSource="{Binding CompactTranscriptionProviderSettings}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <UniformGrid Columns="3" />
@@ -208,6 +195,7 @@
                                                       SelectedValue="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                       Visibility="{Binding IsSelect, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                             <TextBox Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     Style="{StaticResource SingleLineTextBoxStyle}"
                                                      Visibility="{Binding IsTextInput, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                             <TextBlock Text="{Binding Value}"
                                                        Visibility="{Binding IsReadOnlyText, Converter={StaticResource BooleanToVisibilityConverter}}" />
@@ -217,7 +205,7 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <ItemsControl Grid.Row="3" Grid.Column="1" ItemsSource="{Binding FullWidthTranscriptionProviderSettings}">
+                        <ItemsControl Grid.Row="3" ItemsSource="{Binding FullWidthTranscriptionProviderSettings}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Grid Margin="0,0,0,8">
@@ -234,6 +222,7 @@
                                                       SelectedValue="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                       Visibility="{Binding IsSelect, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                             <TextBox Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     Style="{StaticResource SingleLineTextBoxStyle}"
                                                      Visibility="{Binding IsTextInput, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                             <TextBlock Text="{Binding Value}"
                                                        Visibility="{Binding IsReadOnlyText, Converter={StaticResource BooleanToVisibilityConverter}}" />
@@ -248,21 +237,14 @@
 
                 <GroupBox Header="Cleanup" Padding="14" Margin="0,0,0,14">
                     <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="180" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,12,8" Text="Cleanup" />
-                        <CheckBox Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" IsChecked="{Binding IsCleanupEnabled}" Content="Enabled" />
+                        <CheckBox Grid.Row="0" Margin="0,0,0,8" IsChecked="{Binding IsCleanupEnabled}" Content="Enabled" />
 
-                        <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,12,0" Text="Cleanup prompt" />
                         <TextBox Grid.Row="1"
-                                 Grid.Column="1"
                                  MinHeight="80"
                                  Text="{Binding CleanupPrompt, UpdateSourceTrigger=PropertyChanged}"
                                  TextWrapping="Wrap"
@@ -272,19 +254,13 @@
 
                 <GroupBox Header="Output" Padding="14">
                     <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="180" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,12,8" Text="Output" />
                         <ComboBox Grid.Row="0"
-                                  Grid.Column="1"
                                   Margin="0,0,0,8"
                                   ItemsSource="{Binding OutputProviders}"
                                   DisplayMemberPath="DisplayName"
@@ -292,13 +268,12 @@
                                   SelectedValue="{Binding SelectedOutputProviderId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
                         <TextBlock Grid.Row="1"
-                                   Grid.Column="1"
                                    Margin="0,0,0,8"
                                    Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}"
                                    Text="{Binding SelectedOutputProviderDescription}"
                                    TextWrapping="Wrap" />
 
-                        <ItemsControl Grid.Row="2" Grid.ColumnSpan="2" ItemsSource="{Binding OutputProviderSettings}">
+                        <ItemsControl Grid.Row="2" ItemsSource="{Binding OutputProviderSettings}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Grid Margin="0,0,0,8">
@@ -315,6 +290,7 @@
                                                       SelectedValue="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                       Visibility="{Binding IsSelect, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                             <TextBox Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     Style="{StaticResource SingleLineTextBoxStyle}"
                                                      Visibility="{Binding IsTextInput, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                             <TextBlock Text="{Binding Value}"
                                                        Visibility="{Binding IsReadOnlyText, Converter={StaticResource BooleanToVisibilityConverter}}" />
@@ -328,17 +304,5 @@
             </StackPanel>
         </ScrollViewer>
 
-        <DockPanel Grid.Row="2" Margin="0,16,0,0" LastChildFill="False">
-            <TextBlock DockPanel.Dock="Left"
-                       VerticalAlignment="Center"
-                       Text="{Binding StatusMessage}"
-                       Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" />
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                <Button Margin="0,0,8,0" Padding="12,6" Command="{Binding OpenSettingsFolderCommand}" Content="Open Folder" />
-                <Button Margin="0,0,8,0" Padding="12,6" Click="OnHideToTrayClicked" Content="Hide To Tray" />
-                <Button Margin="0,0,8,0" Padding="12,6" Command="{Binding SaveCommand}" Content="Save" />
-                <Button Padding="12,6" Click="OnQuitClicked" Content="Quit" />
-            </StackPanel>
-        </DockPanel>
     </Grid>
 </Window>
