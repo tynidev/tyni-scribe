@@ -2,9 +2,9 @@
 
 This repository is a Windows speech-to-text daemon. Before making architecture or implementation decisions, read:
 
-- [plan.md](../plan.md) for product behavior, state machine rules, provider boundaries, error handling, privacy rules, and first-build scope.
-- [stack.md](../stack.md) for the technical stack, Windows audio strategy, native C++ extension path, transcription options, and open risks.
-- [build-steps.md](../build-steps.md) for the current implementation status and next planned work.
+- [plan.md](../docs/plan.md) for product behavior, state machine rules, provider boundaries, error handling, privacy rules, and first-build scope.
+- [stack.md](../docs/stack.md) for the technical stack, Windows audio strategy, native C++ extension path, transcription options, and open risks.
+- [implementation-steps.md](../docs/implementation-steps.md) for the current implementation status and next planned work.
 
 ## Project Direction
 
