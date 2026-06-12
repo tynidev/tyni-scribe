@@ -282,6 +282,8 @@ Add richer metadata only when the UI needs it, such as language support, timesta
 
 Provider-specific settings should be owned by the provider and exposed in product terms. For example, a local whisper.cpp provider can expose a friendly model/profile selection and language setting, while the executable path and raw model file paths remain app-managed deployment details. Advanced path overrides may exist in configuration for development or portable installs, but they should not be part of the normal settings UI. The first local whisper.cpp model catalog should include tiny/base/small English models plus Large v3 Turbo, with model IDs mapped internally to app-managed model files.
 
+Warm local whisper.cpp model reuse is available through two local provider paths behind the existing batch provider boundary. `whisper-cpp-warm-local` uses a long-lived local `whisper-server.exe` worker that keeps one selected model loaded and restarts when the selected model or language changes. `whisper-cpp-native-local` uses the Windows x64 `tts-whisper-interop.dll` C ABI wrapper built from the pinned `ggml-org/whisper.cpp` submodule under `src/native/Tts.WhisperInterop`. The existing `whisper-cli.exe` provider remains the default compatibility path while the warm and native paths mature through full app-session testing and packaging polish.
+
 ## Configuration
 
 Use one typed configuration file with defaults.
@@ -389,6 +391,7 @@ Out of scope for the first build:
 - Clipboard is the first output destination.
 - Output is handled through output providers so more destinations can be added later.
 - Multiple transcription providers are supported as built-in providers, not external plugins.
+- Warm local whisper.cpp reuse has both a long-lived worker provider and an in-process native C ABI provider. The current process-based CLI provider remains available as the default compatibility path.
 - The microphone level meter is part of the initial app, not a later enhancement.
 - Audio processing starts as a completed-file provider pipeline, not a live audio callback processor.
 - The app favors simple explicit state and small interfaces over a large plugin framework.
