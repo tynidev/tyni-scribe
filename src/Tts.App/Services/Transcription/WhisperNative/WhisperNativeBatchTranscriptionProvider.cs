@@ -21,7 +21,7 @@ public sealed class WhisperNativeBatchTranscriptionProvider : IBatchTranscriptio
         RequiresEndpoint: false,
         "Runs the in-process native whisper.cpp interop engine.");
 
-    public IReadOnlyList<ProviderSettingDescriptor> SettingDescriptors => WhisperCppProviderSettings.Descriptors;
+    public IReadOnlyList<ProviderSettingDescriptor> SettingDescriptors => WhisperNativeProviderSettings.Descriptors;
 
     public async Task<BatchTranscriptionResult> TranscribeAsync(BatchTranscriptionRequest request, CancellationToken cancellationToken = default)
     {
@@ -32,24 +32,25 @@ public sealed class WhisperNativeBatchTranscriptionProvider : IBatchTranscriptio
             throw new FileNotFoundException("The completed recording is not available for transcription.");
         }
 
-        var modelPath = WhisperCppRuntimePaths.ResolveModelPath(request.Settings);
+        var settings = WhisperNativeProviderSettings.Parse(request.Settings);
+        var modelPath = WhisperCppRuntimePaths.ResolveModelPath(settings);
         if (string.IsNullOrWhiteSpace(modelPath) || !File.Exists(modelPath))
         {
-            throw new FileNotFoundException($"The selected local Whisper model '{request.Settings.WhisperCppModelId}' is not installed or was not found.");
+            throw new FileNotFoundException($"The selected local Whisper model '{settings.ModelId}' is not installed or was not found.");
         }
 
         using var timeoutCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutCancellation.CancelAfter(TimeSpan.FromSeconds(request.Settings.TimeoutSeconds));
+        timeoutCancellation.CancelAfter(TimeSpan.FromSeconds(settings.TimeoutSeconds));
 
         try
         {
             var text = await _engine.TranscribeAsync(
                 new WhisperNativeTranscriptionRequest(
-                    request.Settings.WhisperCppModelId,
+                    settings.ModelId,
                     modelPath,
                     request.AudioFilePath,
-                    request.Settings.Language,
-                    request.Settings.TimeoutSeconds),
+                    settings.Language,
+                    settings.TimeoutSeconds),
                 timeoutCancellation.Token);
 
             return new BatchTranscriptionResult(text.Trim());

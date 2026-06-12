@@ -32,29 +32,26 @@ public sealed class FasterWhisperBatchTranscriptionProvider : IBatchTranscriptio
             throw new FileNotFoundException("The completed recording is not available for transcription.");
         }
 
-        var modelDirectory = FasterWhisperRuntimePaths.ResolveModelDirectory(request.Settings);
+        var settings = FasterWhisperProviderSettings.Parse(request.Settings);
+        var modelDirectory = FasterWhisperRuntimePaths.ResolveModelDirectory(settings);
         if (string.IsNullOrWhiteSpace(modelDirectory) || !Directory.Exists(modelDirectory))
         {
-            throw new DirectoryNotFoundException($"The selected faster-whisper model '{request.Settings.FasterWhisperModelId}' is not installed or was not found.");
+            throw new DirectoryNotFoundException($"The selected faster-whisper model '{settings.ModelId}' is not installed or was not found.");
         }
 
-        var computeType = string.IsNullOrWhiteSpace(request.Settings.FasterWhisperComputeType)
-            ? FasterWhisperProviderSettings.DefaultComputeType
-            : request.Settings.FasterWhisperComputeType.Trim();
-
         using var timeoutCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutCancellation.CancelAfter(TimeSpan.FromSeconds(request.Settings.TimeoutSeconds));
+        timeoutCancellation.CancelAfter(TimeSpan.FromSeconds(settings.TimeoutSeconds));
 
         try
         {
             var text = await _engine.TranscribeAsync(
                 new FasterWhisperNativeTranscriptionRequest(
-                    request.Settings.FasterWhisperModelId,
+                    settings.ModelId,
                     modelDirectory,
                     request.AudioFilePath,
-                    request.Settings.Language,
-                    computeType,
-                    request.Settings.TimeoutSeconds),
+                    settings.Language,
+                    settings.ComputeType,
+                    settings.TimeoutSeconds),
                 timeoutCancellation.Token);
 
             return new BatchTranscriptionResult(text.Trim());

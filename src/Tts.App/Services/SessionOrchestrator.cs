@@ -329,7 +329,7 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
                     processedAudio.FilePath,
                     recording.Format,
                     recording.Duration,
-                    snapshot.TranscriptionSettings),
+                    snapshot.TranscriptionProviderSettings),
                 sessionCancellationToken);
         }
         catch (OperationCanceledException)
@@ -395,7 +395,7 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
         try
         {
             var result = await provider.ProcessAsync(
-                new AudioProcessingRequest(recording.FilePath, recording.Format, recording.Duration),
+                new AudioProcessingRequest(recording.FilePath, recording.Format, recording.Duration, snapshot.AudioProcessingProviderSettings),
                 sessionCancellationToken);
 
             processingStopwatch.Stop();
@@ -546,7 +546,7 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
 
             try
             {
-                await provider.WriteAsync(finalText, new OutputProviderContext(sessionId), cancellationToken);
+                await provider.WriteAsync(finalText, new OutputProviderContext(sessionId, GetOutputProviderSettings(snapshot, provider.Id)), cancellationToken);
             }
             catch (OperationCanceledException)
             {
@@ -724,11 +724,48 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
             settings.SelectedMicrophoneDeviceId,
             settings.SelectedTranscriptionProviderId,
             settings.SelectedAudioProcessorProviderId,
-            settings.Transcription.Copy(),
+            CloneSelectedTranscriptionProviderSettings(settings),
+            CloneSelectedProviderSettings(settings.AudioProcessingProviderSettings, settings.SelectedAudioProcessorProviderId),
             settings.EnabledOutputProviderIds.ToArray(),
+            CloneEnabledOutputProviderSettings(settings),
             settings.Cleanup.IsEnabled,
             settings.Cleanup.ProviderId,
             settings.Cleanup.Prompt);
+    }
+
+    private static IReadOnlyDictionary<string, string> CloneSelectedTranscriptionProviderSettings(AppSettings settings)
+    {
+        return CloneSelectedProviderSettings(settings.TranscriptionProviderSettings, settings.SelectedTranscriptionProviderId);
+    }
+
+    private static IReadOnlyDictionary<string, string> CloneSelectedProviderSettings(
+        IReadOnlyDictionary<string, Dictionary<string, string>> providerSettingsById,
+        string providerId)
+    {
+        foreach (var providerSettings in providerSettingsById)
+        {
+            if (providerSettings.Key.Equals(providerId, StringComparison.OrdinalIgnoreCase))
+            {
+                return new Dictionary<string, string>(providerSettings.Value, StringComparer.OrdinalIgnoreCase);
+            }
+        }
+
+        return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> CloneEnabledOutputProviderSettings(AppSettings settings)
+    {
+        var outputProviderSettings = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var providerId in settings.EnabledOutputProviderIds
+                     .Where(providerId => !string.IsNullOrWhiteSpace(providerId))
+                     .Select(providerId => providerId.Trim())
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            outputProviderSettings[providerId] = CloneSelectedProviderSettings(settings.OutputProviderSettings, providerId);
+        }
+
+        return outputProviderSettings;
     }
 
     private sealed class ActiveSessionTiming
@@ -832,30 +869,25 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
 
         private static string CreateProviderSettingsJson(SessionSnapshot snapshot)
         {
-            var transcriptionSettings = snapshot.TranscriptionSettings;
-            var transcriptionModelId = snapshot.TranscriptionProviderId.Equals(FasterWhisperBatchTranscriptionProvider.ProviderId, StringComparison.OrdinalIgnoreCase)
-                ? transcriptionSettings.FasterWhisperModelId
-                : transcriptionSettings.WhisperCppModelId;
-            var computeType = snapshot.TranscriptionProviderId.Equals(FasterWhisperBatchTranscriptionProvider.ProviderId, StringComparison.OrdinalIgnoreCase)
-                ? transcriptionSettings.FasterWhisperComputeType
-                : null;
+            var transcriptionSettings = snapshot.TranscriptionProviderSettings;
+            var computeType = GetProviderSettingValue(transcriptionSettings, ProviderSettingKeys.TranscriptionComputeType);
 
             var providerSettings = new
             {
                 transcription = new
                 {
                     providerId = snapshot.TranscriptionProviderId,
-                    modelId = transcriptionModelId,
-                    language = transcriptionSettings.Language,
+                    modelId = GetProviderSettingValue(transcriptionSettings, ProviderSettingKeys.TranscriptionModelId),
+                    language = GetProviderSettingValue(transcriptionSettings, ProviderSettingKeys.TranscriptionLanguage),
                     computeType,
-                    timeoutSeconds = transcriptionSettings.TimeoutSeconds,
-                    whisperCppExecutablePathOverrideSet = !string.IsNullOrWhiteSpace(transcriptionSettings.WhisperCppExecutablePathOverride),
-                    whisperModelPathOverrideSet = !string.IsNullOrWhiteSpace(transcriptionSettings.WhisperModelPathOverride),
-                    fasterWhisperModelPathOverrideSet = !string.IsNullOrWhiteSpace(transcriptionSettings.FasterWhisperModelPathOverride)
+                    timeoutSeconds = GetProviderSettingValue(transcriptionSettings, ProviderSettingKeys.TranscriptionTimeoutSeconds),
+                    executablePathOverrideSet = HasProviderSettingValue(transcriptionSettings, ProviderSettingKeys.TranscriptionExecutablePathOverride),
+                    modelPathOverrideSet = HasProviderSettingValue(transcriptionSettings, ProviderSettingKeys.TranscriptionModelPathOverride)
                 },
                 audioProcessing = new
                 {
-                    providerId = snapshot.AudioProcessorProviderId
+                    providerId = snapshot.AudioProcessorProviderId,
+                    settingsConfigured = snapshot.AudioProcessingProviderSettings.Count > 0
                 },
                 cleanup = new
                 {
@@ -865,15 +897,44 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
                 },
                 output = new
                 {
-                    providerIds = snapshot.EnabledOutputProviderIds
+                    providerIds = snapshot.EnabledOutputProviderIds,
+                    settingsConfiguredProviderIds = snapshot.OutputProviderSettings
+                        .Where(providerSettings => providerSettings.Value.Count > 0)
+                        .Select(providerSettings => providerSettings.Key)
+                        .ToArray()
                 }
             };
 
             return JsonSerializer.Serialize(providerSettings);
         }
+
+        private static string? GetProviderSettingValue(IReadOnlyDictionary<string, string> settings, string key)
+        {
+            return settings.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value)
+                ? value.Trim()
+                : null;
+        }
+
+        private static bool HasProviderSettingValue(IReadOnlyDictionary<string, string> settings, string key)
+        {
+            return !string.IsNullOrWhiteSpace(GetProviderSettingValue(settings, key));
+        }
     }
 
     private sealed record PendingOutput(string Text, SessionSnapshot Snapshot, Guid SessionId, string ErrorCategory);
+
+    private static IReadOnlyDictionary<string, string> GetOutputProviderSettings(SessionSnapshot snapshot, string providerId)
+    {
+        foreach (var providerSettings in snapshot.OutputProviderSettings)
+        {
+            if (providerSettings.Key.Equals(providerId, StringComparison.OrdinalIgnoreCase))
+            {
+                return providerSettings.Value;
+            }
+        }
+
+        return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    }
 
     private readonly record struct OutputWriteResult(bool Succeeded, string StatusMessage, string? ErrorCategory)
     {

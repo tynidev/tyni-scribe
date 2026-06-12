@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -27,10 +26,15 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
     private readonly IReadOnlyDictionary<string, IReadOnlyList<ProviderSettingDescriptor>> _transcriptionProviderSettings;
     private readonly IReadOnlyDictionary<string, IReadOnlyList<ProviderSettingDescriptor>> _audioProcessingProviderSettings;
     private readonly IReadOnlyDictionary<string, IReadOnlyList<ProviderSettingDescriptor>> _outputProviderSettings;
-    private readonly Dictionary<string, string> _providerSettingValues = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Dictionary<string, string>> _transcriptionProviderSettingValues = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Dictionary<string, string>> _audioProcessingProviderSettingValues = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Dictionary<string, string>> _outputProviderSettingValues = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _saveLock = new(1, 1);
     private CancellationTokenSource? _autoSaveCancellation;
     private AppSettings _settings = new();
+    private string _currentTranscriptionProviderSettingsProviderId = string.Empty;
+    private string _currentAudioProcessingProviderSettingsProviderId = string.Empty;
+    private string _currentOutputProviderSettingsProviderId = string.Empty;
     private bool _isRefreshingMicrophones;
     private bool _isLoaded;
 
@@ -317,11 +321,9 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
 
         try
         {
-        CaptureProviderSettingRows(TranscriptionProviderSettings);
-        CaptureProviderSettingRows(CompactTranscriptionProviderSettings);
-        CaptureProviderSettingRows(FullWidthTranscriptionProviderSettings);
-        CaptureProviderSettingRows(AudioProcessingProviderSettings);
-        CaptureProviderSettingRows(OutputProviderSettings);
+        CaptureCurrentTranscriptionProviderSettingRows();
+        CaptureCurrentAudioProcessingProviderSettingRows();
+        CaptureCurrentOutputProviderSettingRows();
 
         var nextSettings = new AppSettings
         {
@@ -333,25 +335,8 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
             CancelHotkey = HotkeySettings.FromGesture(CancelHotkey.Trim()),
             SelectedTranscriptionProviderId = ResolveSelectedTranscriptionProviderId(SelectedTranscriptionProviderId),
             SelectedAudioProcessorProviderId = ResolveSelectedAudioProcessorProviderId(SelectedAudioProcessorProviderId),
-            Transcription = new TranscriptionSettings
-            {
-                WhisperCppModelId = GetProviderSettingValue(
-                    ProviderSettingKeys.WhisperCppModelId,
-                    WhisperCppModelCatalog.TinyEnglishModelId),
-                FasterWhisperModelId = GetProviderSettingValue(
-                    ProviderSettingKeys.FasterWhisperModelId,
-                    FasterWhisperModelCatalog.TinyEnglishModelId),
-                WhisperCppExecutablePathOverride = _settings.Transcription.WhisperCppExecutablePathOverride,
-                WhisperModelPathOverride = _settings.Transcription.WhisperModelPathOverride,
-                FasterWhisperModelPathOverride = _settings.Transcription.FasterWhisperModelPathOverride,
-                FasterWhisperComputeType = GetProviderSettingValue(
-                    ProviderSettingKeys.FasterWhisperComputeType,
-                    FasterWhisperProviderSettings.DefaultComputeType),
-                Language = GetProviderSettingValue(ProviderSettingKeys.TranscriptionLanguage, _settings.Transcription.Language).Trim(),
-                TimeoutSeconds = GetProviderSettingIntValue(
-                    ProviderSettingKeys.TranscriptionTimeoutSeconds,
-                    _settings.Transcription.TimeoutSeconds)
-            },
+            TranscriptionProviderSettings = CopyTranscriptionProviderSettings(),
+            AudioProcessingProviderSettings = CopyProviderSettings(_audioProcessingProviderSettingValues),
             Cleanup = new CleanupSettings
             {
                 IsEnabled = IsCleanupEnabled,
@@ -359,6 +344,7 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
                 Prompt = CleanupPrompt.Trim()
             },
             EnabledOutputProviderIds = new List<string> { ResolveSelectedOutputProviderId(SelectedOutputProviderId) },
+            OutputProviderSettings = CopyProviderSettings(_outputProviderSettingValues),
             SettingsWindow = _settings.SettingsWindow
         };
 
@@ -412,26 +398,82 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
 
     private void LoadProviderSettingValuesFromSettings()
     {
-        _providerSettingValues.Clear();
-        _providerSettingValues[ProviderSettingKeys.WhisperCppModelId] = ResolveWhisperCppModelId(_settings.Transcription.WhisperCppModelId);
-        _providerSettingValues[ProviderSettingKeys.FasterWhisperModelId] = ResolveFasterWhisperModelId(_settings.Transcription.FasterWhisperModelId);
-        _providerSettingValues[ProviderSettingKeys.FasterWhisperComputeType] = _settings.Transcription.FasterWhisperComputeType;
-        _providerSettingValues[ProviderSettingKeys.TranscriptionLanguage] = _settings.Transcription.Language;
-        _providerSettingValues[ProviderSettingKeys.TranscriptionTimeoutSeconds] = _settings.Transcription.TimeoutSeconds.ToString(CultureInfo.InvariantCulture);
+        _currentTranscriptionProviderSettingsProviderId = string.Empty;
+        _currentAudioProcessingProviderSettingsProviderId = string.Empty;
+        _currentOutputProviderSettingsProviderId = string.Empty;
+        _transcriptionProviderSettingValues.Clear();
+        _audioProcessingProviderSettingValues.Clear();
+        _outputProviderSettingValues.Clear();
+
+        foreach (var providerSettings in _settings.TranscriptionProviderSettings)
+        {
+            _transcriptionProviderSettingValues[providerSettings.Key] = new Dictionary<string, string>(providerSettings.Value, StringComparer.OrdinalIgnoreCase);
+        }
+
+        foreach (var providerSettings in _settings.AudioProcessingProviderSettings)
+        {
+            _audioProcessingProviderSettingValues[providerSettings.Key] = new Dictionary<string, string>(providerSettings.Value, StringComparer.OrdinalIgnoreCase);
+        }
+
+        foreach (var providerSettings in _settings.OutputProviderSettings)
+        {
+            _outputProviderSettingValues[providerSettings.Key] = new Dictionary<string, string>(providerSettings.Value, StringComparer.OrdinalIgnoreCase);
+        }
     }
 
-    private void CaptureProviderSettingRows(IEnumerable<ProviderSettingViewModel> settingRows)
+    private void CaptureCurrentTranscriptionProviderSettingRows()
     {
+        if (string.IsNullOrWhiteSpace(_currentTranscriptionProviderSettingsProviderId))
+        {
+            return;
+        }
+
+        CaptureTranscriptionProviderSettingRows(_currentTranscriptionProviderSettingsProviderId, TranscriptionProviderSettings);
+    }
+
+    private void CaptureTranscriptionProviderSettingRows(string providerId, IEnumerable<ProviderSettingViewModel> settingRows)
+    {
+        var providerSettings = GetOrCreateTranscriptionProviderSettingValues(providerId);
+
         foreach (var row in settingRows)
         {
-            _providerSettingValues[row.Key] = row.Value;
+            providerSettings[row.Key] = row.Value;
+        }
+    }
+
+    private void CaptureCurrentAudioProcessingProviderSettingRows()
+    {
+        CaptureCurrentProviderSettingRows(_currentAudioProcessingProviderSettingsProviderId, AudioProcessingProviderSettings, _audioProcessingProviderSettingValues);
+    }
+
+    private void CaptureCurrentOutputProviderSettingRows()
+    {
+        CaptureCurrentProviderSettingRows(_currentOutputProviderSettingsProviderId, OutputProviderSettings, _outputProviderSettingValues);
+    }
+
+    private static void CaptureCurrentProviderSettingRows(
+        string providerId,
+        IEnumerable<ProviderSettingViewModel> settingRows,
+        Dictionary<string, Dictionary<string, string>> providerSettingValues)
+    {
+        if (string.IsNullOrWhiteSpace(providerId))
+        {
+            return;
+        }
+
+        var providerSettings = GetOrCreateProviderSettingValues(providerSettingValues, providerId);
+
+        foreach (var row in settingRows)
+        {
+            providerSettings[row.Key] = row.Value;
         }
     }
 
     private void LoadProviderSettingRows(
         ObservableCollection<ProviderSettingViewModel> settingRows,
         IReadOnlyDictionary<string, IReadOnlyList<ProviderSettingDescriptor>> providerSettings,
-        string providerId)
+        string providerId,
+        Dictionary<string, Dictionary<string, string>> providerSettingValues)
     {
         ClearProviderSettingRows(settingRows);
 
@@ -442,7 +484,7 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
 
         foreach (var descriptor in descriptors)
         {
-            settingRows.Add(CreateProviderSettingRow(descriptor));
+            settingRows.Add(CreateProviderSettingRow(providerId, descriptor, providerSettingValues));
         }
     }
 
@@ -451,6 +493,7 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         ClearProviderSettingRows(TranscriptionProviderSettings);
         CompactTranscriptionProviderSettings.Clear();
         FullWidthTranscriptionProviderSettings.Clear();
+        _currentTranscriptionProviderSettingsProviderId = providerId;
 
         if (!_transcriptionProviderSettings.TryGetValue(providerId, out var descriptors))
         {
@@ -459,7 +502,7 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
 
         foreach (var descriptor in descriptors)
         {
-            var row = CreateProviderSettingRow(descriptor);
+            var row = CreateTranscriptionProviderSettingRow(providerId, descriptor);
             TranscriptionProviderSettings.Add(row);
 
             if (row.IsCompact)
@@ -472,9 +515,19 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         }
     }
 
-    private ProviderSettingViewModel CreateProviderSettingRow(ProviderSettingDescriptor descriptor)
+    private ProviderSettingViewModel CreateProviderSettingRow(
+        string providerId,
+        ProviderSettingDescriptor descriptor,
+        Dictionary<string, Dictionary<string, string>> providerSettingValues)
     {
-        var row = new ProviderSettingViewModel(descriptor, GetInitialProviderSettingValue(descriptor));
+        var row = new ProviderSettingViewModel(descriptor, GetInitialProviderSettingValue(providerId, descriptor, providerSettingValues));
+        row.PropertyChanged += OnProviderSettingRowPropertyChanged;
+        return row;
+    }
+
+    private ProviderSettingViewModel CreateTranscriptionProviderSettingRow(string providerId, ProviderSettingDescriptor descriptor)
+    {
+        var row = new ProviderSettingViewModel(descriptor, GetInitialTranscriptionProviderSettingValue(providerId, descriptor));
         row.PropertyChanged += OnProviderSettingRowPropertyChanged;
         return row;
     }
@@ -497,9 +550,14 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         }
     }
 
-    private string GetInitialProviderSettingValue(ProviderSettingDescriptor descriptor)
+    private static string GetInitialProviderSettingValue(
+        string providerId,
+        ProviderSettingDescriptor descriptor,
+        Dictionary<string, Dictionary<string, string>> providerSettingValues)
     {
-        if (_providerSettingValues.TryGetValue(descriptor.Key, out var value))
+        var providerSettings = GetOrCreateProviderSettingValues(providerSettingValues, providerId);
+
+        if (providerSettings.TryGetValue(descriptor.Key, out var value))
         {
             return value;
         }
@@ -507,32 +565,85 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         return descriptor.Options?.FirstOrDefault()?.Value ?? string.Empty;
     }
 
-    private string GetProviderSettingValue(string key, string fallback)
+    private string GetInitialTranscriptionProviderSettingValue(string providerId, ProviderSettingDescriptor descriptor)
     {
-        return _providerSettingValues.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value)
-            ? value.Trim()
-            : fallback;
+        var providerSettings = GetOrCreateTranscriptionProviderSettingValues(providerId);
+
+        if (providerSettings.TryGetValue(descriptor.Key, out var value))
+        {
+            return value;
+        }
+
+        return descriptor.Options?.FirstOrDefault()?.Value ?? string.Empty;
     }
 
-    private int GetProviderSettingIntValue(string key, int fallback)
+    private Dictionary<string, string> GetOrCreateTranscriptionProviderSettingValues(string providerId)
     {
-        return int.TryParse(GetProviderSettingValue(key, fallback.ToString(CultureInfo.InvariantCulture)), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) && value > 0
-            ? value
-            : fallback;
+        if (_transcriptionProviderSettingValues.TryGetValue(providerId, out var providerSettings))
+        {
+            return providerSettings;
+        }
+
+        providerSettings = CreateDefaultTranscriptionProviderSettingValues(providerId);
+        _transcriptionProviderSettingValues[providerId] = providerSettings;
+        return providerSettings;
     }
 
-    private static string ResolveWhisperCppModelId(string modelId)
+    private static Dictionary<string, string> GetOrCreateProviderSettingValues(
+        Dictionary<string, Dictionary<string, string>> providerSettingValues,
+        string providerId)
     {
-        return WhisperCppModelCatalog.Models.Any(model => model.Id.Equals(modelId, StringComparison.OrdinalIgnoreCase))
-            ? modelId
-            : WhisperCppModelCatalog.TinyEnglishModelId;
+        if (providerSettingValues.TryGetValue(providerId, out var providerSettings))
+        {
+            return providerSettings;
+        }
+
+        providerSettings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        providerSettingValues[providerId] = providerSettings;
+        return providerSettings;
     }
 
-    private static string ResolveFasterWhisperModelId(string modelId)
+    private static Dictionary<string, string> CreateDefaultTranscriptionProviderSettingValues(string providerId)
     {
-        return FasterWhisperModelCatalog.Models.Any(model => model.Id.Equals(modelId, StringComparison.OrdinalIgnoreCase))
-            ? modelId
-            : FasterWhisperModelCatalog.TinyEnglishModelId;
+        if (providerId.Equals(WhisperCppBatchTranscriptionProvider.ProviderId, StringComparison.OrdinalIgnoreCase))
+        {
+            return WhisperCppProviderSettings.CreateDefaultValues();
+        }
+
+        if (providerId.Equals(FasterWhisperBatchTranscriptionProvider.ProviderId, StringComparison.OrdinalIgnoreCase))
+        {
+            return FasterWhisperProviderSettings.CreateDefaultValues();
+        }
+
+        if (providerId.Equals(WhisperWarmBatchTranscriptionProvider.ProviderId, StringComparison.OrdinalIgnoreCase))
+        {
+            return WhisperWarmProviderSettings.CreateDefaultValues();
+        }
+
+        if (providerId.Equals(WhisperNativeBatchTranscriptionProvider.ProviderId, StringComparison.OrdinalIgnoreCase))
+        {
+            return WhisperNativeProviderSettings.CreateDefaultValues();
+        }
+
+        return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private Dictionary<string, Dictionary<string, string>> CopyTranscriptionProviderSettings()
+    {
+        return CopyProviderSettings(_transcriptionProviderSettingValues);
+    }
+
+    private static Dictionary<string, Dictionary<string, string>> CopyProviderSettings(
+        Dictionary<string, Dictionary<string, string>> providerSettingValues)
+    {
+        var copy = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var providerSettings in providerSettingValues)
+        {
+            copy[providerSettings.Key] = new Dictionary<string, string>(providerSettings.Value, StringComparer.OrdinalIgnoreCase);
+        }
+
+        return copy;
     }
 
     private string ResolveSelectedTranscriptionProviderId(string providerId)
@@ -592,9 +703,7 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
 
     partial void OnSelectedTranscriptionProviderIdChanged(string value)
     {
-        CaptureProviderSettingRows(TranscriptionProviderSettings);
-        CaptureProviderSettingRows(CompactTranscriptionProviderSettings);
-        CaptureProviderSettingRows(FullWidthTranscriptionProviderSettings);
+        CaptureCurrentTranscriptionProviderSettingRows();
         SelectedTranscriptionProviderDescription = TranscriptionProviders.FirstOrDefault(provider => provider.Id.Equals(value, StringComparison.OrdinalIgnoreCase))?.Description ?? string.Empty;
         LoadTranscriptionProviderSettingRows(value);
         QueueAutoSave();
@@ -602,17 +711,19 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
 
     partial void OnSelectedAudioProcessorProviderIdChanged(string value)
     {
-        CaptureProviderSettingRows(AudioProcessingProviderSettings);
+        CaptureCurrentAudioProcessingProviderSettingRows();
         SelectedAudioProcessorProviderDescription = AudioProcessingProviders.FirstOrDefault(provider => provider.Id.Equals(value, StringComparison.OrdinalIgnoreCase))?.Description ?? string.Empty;
-        LoadProviderSettingRows(AudioProcessingProviderSettings, _audioProcessingProviderSettings, value);
+        _currentAudioProcessingProviderSettingsProviderId = value;
+        LoadProviderSettingRows(AudioProcessingProviderSettings, _audioProcessingProviderSettings, value, _audioProcessingProviderSettingValues);
         QueueAutoSave();
     }
 
     partial void OnSelectedOutputProviderIdChanged(string value)
     {
-        CaptureProviderSettingRows(OutputProviderSettings);
+        CaptureCurrentOutputProviderSettingRows();
         SelectedOutputProviderDescription = OutputProviders.FirstOrDefault(provider => provider.Id.Equals(value, StringComparison.OrdinalIgnoreCase))?.Description ?? string.Empty;
-        LoadProviderSettingRows(OutputProviderSettings, _outputProviderSettings, value);
+        _currentOutputProviderSettingsProviderId = value;
+        LoadProviderSettingRows(OutputProviderSettings, _outputProviderSettings, value, _outputProviderSettingValues);
         QueueAutoSave();
     }
 

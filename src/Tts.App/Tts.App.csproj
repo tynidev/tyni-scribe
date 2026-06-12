@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -14,7 +14,7 @@
     <Content Include="Assets\speech-to-text-daemon.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="Services\Transcription\Scripts\faster_whisper_transcribe.py" Link="faster_whisper_transcribe.py">
+    <Content Include="Services\Transcription\FasterWhisper\Scripts\faster_whisper_transcribe.py" Link="faster_whisper_transcribe.py">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

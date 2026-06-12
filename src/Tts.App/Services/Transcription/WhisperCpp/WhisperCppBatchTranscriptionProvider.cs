@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.IO;
-using Tts.App.Configuration;
 using Tts.App.Services;
 
 namespace Tts.App.Services.Transcription;
@@ -27,21 +26,22 @@ public sealed class WhisperCppBatchTranscriptionProvider : IBatchTranscriptionPr
             throw new FileNotFoundException("The completed recording is not available for transcription.");
         }
 
-        var executablePath = WhisperCppRuntimePaths.ResolveCliExecutablePath(request.Settings);
+        var settings = WhisperCppProviderSettings.Parse(request.Settings);
+        var executablePath = WhisperCppRuntimePaths.ResolveCliExecutablePath(settings);
         if (string.IsNullOrWhiteSpace(executablePath) || !File.Exists(executablePath))
         {
             throw new FileNotFoundException("The local Whisper engine is not installed or was not found.");
         }
 
-        var modelPath = WhisperCppRuntimePaths.ResolveModelPath(request.Settings);
+        var modelPath = WhisperCppRuntimePaths.ResolveModelPath(settings);
         if (string.IsNullOrWhiteSpace(modelPath) || !File.Exists(modelPath))
         {
-            throw new FileNotFoundException($"The selected local Whisper model '{request.Settings.WhisperCppModelId}' is not installed or was not found.");
+            throw new FileNotFoundException($"The selected local Whisper model '{settings.ModelId}' is not installed or was not found.");
         }
 
         using var process = new Process
         {
-            StartInfo = BuildStartInfo(executablePath, modelPath, request.AudioFilePath, request.Settings.Language)
+            StartInfo = BuildStartInfo(executablePath, modelPath, request.AudioFilePath, settings.Language)
         };
 
         try
@@ -59,7 +59,7 @@ public sealed class WhisperCppBatchTranscriptionProvider : IBatchTranscriptionPr
         var standardOutputTask = process.StandardOutput.ReadToEndAsync();
         var standardErrorTask = process.StandardError.ReadToEndAsync();
         using var timeoutCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutCancellation.CancelAfter(TimeSpan.FromSeconds(request.Settings.TimeoutSeconds));
+        timeoutCancellation.CancelAfter(TimeSpan.FromSeconds(settings.TimeoutSeconds));
 
         try
         {

@@ -123,6 +123,7 @@ Complete? Yes
 
 - Defined a small completed-file audio processing provider interface.
 - Added a no-op audio processor with provider ID `noop` that returns the original completed audio file unchanged.
+- The no-op audio processor implementation lives under its own provider folder.
 - Added selected audio processor settings with `noop` as the default.
 - Snapshotted the selected audio processor at recording start so changes apply to the next session.
 - Timed this stage as `audio-processing`, including the no-op processor.
@@ -147,6 +148,7 @@ Complete? Yes
 - Defined a small `IOutputProvider` interface with provider ID, display name, and final-text write operation.
 - Added `ClipboardOutputProvider` as the first output provider with ID `clipboard`.
 - Added `PasteOutputProvider` with ID `paste`; it sets the clipboard to the final transcript and sends Ctrl+V to the active window.
+- Clipboard and paste output implementations live under their own provider folders.
 - Registered clipboard output through dependency injection as a safe output provider.
 - Registered paste output through dependency injection as an opt-in output provider.
 - Clipboard writes marshal to the WPF dispatcher so hotkey or tray-triggered sessions can safely write to the Windows clipboard.
@@ -236,12 +238,14 @@ Complete? No
 - `paste` is the default output provider for new configs, with `clipboard` still available as the safer manual-paste option.
 - Replaced the settings-window free-text transcription provider field with a dropdown populated from registered provider metadata.
 - The dropdown stores the selected provider ID in the existing config field and falls back to `whisper-cpp-local` when saved settings reference an unavailable provider.
-- Provider-specific settings now react to the selected provider; whisper.cpp model, language, and timeout controls are shown only for whisper.cpp providers, including the warm worker and native local providers.
+- Transcriber implementation files now live under provider folders: `FasterWhisper`, `WhisperCpp`, `WhisperNative`, and `WhisperWarm`.
+- Transcription provider settings are stored per provider ID, so `whisper-cpp-local`, `whisper-cpp-warm-local`, `whisper-cpp-native-local`, and `faster-whisper-local` each keep independent model, language, timeout, and provider-specific options.
+- Audio processing and output provider settings also use provider-ID keyed storage; the current built-in audio/output providers have empty setting dictionaries, but future providers can add descriptors without changing the config shape.
+- Provider-specific settings now react to the selected provider; whisper.cpp-style model, language, and timeout controls are backed by independent provider-owned settings for the CLI, warm worker, and native local providers.
 - Provider-specific settings now also show faster-whisper model, compute type, language, and timeout only when `faster-whisper-local` is selected.
 
 Remaining work:
 
-- Add audio processing provider selection in settings.
 - Add streaming provider registration and selection once Step 7 exists.
 - Show only metadata needed for first routing and settings decisions.
 - Clearly label providers that send audio or text to a remote endpoint.
@@ -274,7 +278,7 @@ Complete? No
 - Captured current available timing data: `totalSessionMs`, `recordingDurationMs`, `captureFinalizationMs`, `audioProcessingMs`, `transcriptionMs`, and `clipboardOutputMs` when those stages run.
 - Captured sanitized session metadata currently available: session ID, UTC start/completion timestamps, status, sanitized error category, microphone device ID, transcription provider ID, cleanup provider ID, and output provider IDs.
 - Added timing schema version 2 with a `providerSettingsJson` column containing a compact sanitized provider settings snapshot for performance analysis.
-- `providerSettingsJson` records safe settings such as transcription model ID, language, compute type, timeout seconds, output provider IDs, and path-override booleans; it does not record raw paths, transcript text, cleanup prompt text, secrets, endpoint URLs, or audio content.
+- `providerSettingsJson` records safe settings such as transcription model ID, language, compute type, timeout seconds, audio/output provider IDs, non-sensitive settings-present indicators, and path-override booleans; it does not record raw paths, transcript text, cleanup prompt text, secrets, endpoint URLs, or audio content.
 - Left not-yet-implemented stage duration columns empty: `textCleanupMs` and `tempFileCleanupMs`.
 - Run stale temp-file cleanup on startup.
 - Delete captured and processed temp audio after success, cancellation, and failure.

@@ -5,4 +5,5 @@ namespace Tts.App.Services.AudioProcessing;
 public sealed record AudioProcessingRequest(
     string AudioFilePath,
     AudioCaptureFormat AudioFormat,
-    TimeSpan Duration);
+    TimeSpan Duration,
+    IReadOnlyDictionary<string, string> Settings);

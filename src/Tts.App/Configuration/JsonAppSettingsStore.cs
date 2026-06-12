@@ -1,6 +1,8 @@
 using System.IO;
 using System.Text.Json;
 using Tts.App.Services;
+using Tts.App.Services.AudioProcessing;
+using Tts.App.Services.Output;
 using Tts.App.Services.Transcription;
 
 namespace Tts.App.Configuration;
@@ -31,7 +33,7 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
 
             if (!File.Exists(SettingsFilePath))
             {
-                var defaultSettings = new AppSettings();
+                var defaultSettings = Normalize(new AppSettings());
                 await WriteSettingsAsync(defaultSettings, cancellationToken);
                 return defaultSettings;
             }
@@ -92,10 +94,7 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
 
     private static AppSettings Normalize(AppSettings settings)
     {
-        if (settings.ConfigVersion <= 0)
-        {
-            settings.ConfigVersion = AppSettings.CurrentConfigVersion;
-        }
+        settings.ConfigVersion = AppSettings.CurrentConfigVersion;
 
         settings.StartStopHotkey ??= HotkeySettings.FromGesture("Ctrl+Alt+Space");
         settings.CancelHotkey ??= HotkeySettings.FromGesture("Ctrl+Shift+Space");
@@ -115,25 +114,10 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
         settings.SelectedAudioProcessorProviderId = string.IsNullOrWhiteSpace(settings.SelectedAudioProcessorProviderId)
             ? "noop"
             : settings.SelectedAudioProcessorProviderId;
-        settings.Transcription ??= new TranscriptionSettings();
-        settings.Transcription.WhisperCppModelId = string.IsNullOrWhiteSpace(settings.Transcription.WhisperCppModelId)
-            ? WhisperCppModelCatalog.TinyEnglishModelId
-            : settings.Transcription.WhisperCppModelId;
-        settings.Transcription.WhisperCppModelId = WhisperCppModelCatalog.Models.Any(model => model.Id.Equals(settings.Transcription.WhisperCppModelId, StringComparison.OrdinalIgnoreCase))
-            ? settings.Transcription.WhisperCppModelId
-            : WhisperCppModelCatalog.TinyEnglishModelId;
-        settings.Transcription.WhisperCppExecutablePathOverride = string.IsNullOrWhiteSpace(settings.Transcription.WhisperCppExecutablePathOverride)
-            ? null
-            : settings.Transcription.WhisperCppExecutablePathOverride;
-        settings.Transcription.WhisperModelPathOverride = string.IsNullOrWhiteSpace(settings.Transcription.WhisperModelPathOverride)
-            ? null
-            : settings.Transcription.WhisperModelPathOverride;
-        settings.Transcription.Language = string.IsNullOrWhiteSpace(settings.Transcription.Language)
-            ? "en"
-            : settings.Transcription.Language;
-        settings.Transcription.TimeoutSeconds = settings.Transcription.TimeoutSeconds <= 0
-            ? 600
-            : settings.Transcription.TimeoutSeconds;
+        settings.TranscriptionProviderSettings = NormalizeTranscriptionProviderSettings(settings.TranscriptionProviderSettings);
+        settings.AudioProcessingProviderSettings = NormalizeProviderSettings(
+            settings.AudioProcessingProviderSettings,
+            NoOpAudioProcessingProvider.ProviderId);
         settings.Cleanup ??= new CleanupSettings();
         settings.EnabledOutputProviderIds ??= new List<string> { "paste" };
         if (settings.EnabledOutputProviderIds.Count == 0)
@@ -145,8 +129,66 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
             settings.EnabledOutputProviderIds[0] = "paste";
         }
 
+        settings.OutputProviderSettings = NormalizeProviderSettings(
+            settings.OutputProviderSettings,
+            ClipboardOutputProvider.ProviderId,
+            PasteOutputProvider.ProviderId);
+
         settings.SettingsWindow ??= new SettingsWindowPlacement();
 
         return settings;
+    }
+
+    private static Dictionary<string, Dictionary<string, string>> NormalizeTranscriptionProviderSettings(
+        Dictionary<string, Dictionary<string, string>>? providerSettings)
+    {
+        return new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase)
+        {
+            [WhisperCppBatchTranscriptionProvider.ProviderId] = WhisperCppProviderSettings.Normalize(GetProviderSettings(providerSettings, WhisperCppBatchTranscriptionProvider.ProviderId)),
+            [FasterWhisperBatchTranscriptionProvider.ProviderId] = FasterWhisperProviderSettings.Normalize(GetProviderSettings(providerSettings, FasterWhisperBatchTranscriptionProvider.ProviderId)),
+            [WhisperWarmBatchTranscriptionProvider.ProviderId] = WhisperWarmProviderSettings.Normalize(GetProviderSettings(providerSettings, WhisperWarmBatchTranscriptionProvider.ProviderId)),
+            [WhisperNativeBatchTranscriptionProvider.ProviderId] = WhisperNativeProviderSettings.Normalize(GetProviderSettings(providerSettings, WhisperNativeBatchTranscriptionProvider.ProviderId))
+        };
+    }
+
+    private static Dictionary<string, Dictionary<string, string>> NormalizeProviderSettings(
+        Dictionary<string, Dictionary<string, string>>? providerSettings,
+        params string[] providerIds)
+    {
+        var normalized = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var providerId in providerIds)
+        {
+            normalized[providerId] = CopyProviderSettings(GetProviderSettings(providerSettings, providerId));
+        }
+
+        return normalized;
+    }
+
+    private static Dictionary<string, string> CopyProviderSettings(IReadOnlyDictionary<string, string>? providerSettings)
+    {
+        return providerSettings is null
+            ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(providerSettings, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static IReadOnlyDictionary<string, string>? GetProviderSettings(
+        Dictionary<string, Dictionary<string, string>>? providerSettings,
+        string providerId)
+    {
+        if (providerSettings is null)
+        {
+            return null;
+        }
+
+        foreach (var pair in providerSettings)
+        {
+            if (pair.Key.Equals(providerId, StringComparison.OrdinalIgnoreCase))
+            {
+                return pair.Value;
+            }
+        }
+
+        return null;
     }
 }

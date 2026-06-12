@@ -360,7 +360,7 @@ $python = Join-Path $venv 'Scripts\python.exe'
 $modelDir = Join-Path $env:LOCALAPPDATA 'tts\models\faster-whisper\tiny-en'
 $audio = 'src\native\Tts.WhisperInterop\third_party\whisper.cpp\bindings\go\samples\jfk.wav'
 
-& $python 'src\Tts.App\Services\Transcription\Scripts\faster_whisper_transcribe.py' `
+& $python 'src\Tts.App\Services\Transcription\FasterWhisper\Scripts\faster_whisper_transcribe.py' `
     --model-dir $modelDir `
     --audio-file $audio `
     --language en `

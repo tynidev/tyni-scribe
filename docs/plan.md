@@ -311,11 +311,13 @@ Recommended settings:
 - Selected transcription provider.
 - Selected audio processing provider.
 - Transcription provider settings, such as local model/profile, language, timeout, or remote endpoint type when needed.
+- Audio processing provider settings, keyed by provider ID.
 - Enable text cleanup.
 - Selected cleanup provider.
 - Cleanup provider endpoint, when needed.
 - Cleanup prompt.
 - Enabled output providers.
+- Output provider settings, keyed by provider ID.
 
 Include a config version field, but do not build migration machinery until a second config version exists.
 

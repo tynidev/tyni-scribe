@@ -1,5 +1,4 @@
 using System.IO;
-using Tts.App.Configuration;
 
 namespace Tts.App.Services.Transcription;
 
@@ -28,14 +27,14 @@ public static class FasterWhisperRuntimePaths
         return Path.Combine(AppContext.BaseDirectory, NativeInteropLibraryName + ".dll");
     }
 
-    public static string ResolveModelDirectory(TranscriptionSettings settings)
+    public static string ResolveModelDirectory(FasterWhisperTranscriptionSettings settings)
     {
-        if (!string.IsNullOrWhiteSpace(settings.FasterWhisperModelPathOverride))
+        if (!string.IsNullOrWhiteSpace(settings.ModelPathOverride))
         {
-            return settings.FasterWhisperModelPathOverride.Trim();
+            return settings.ModelPathOverride.Trim();
         }
 
-        var modelDirectoryName = FasterWhisperModelCatalog.Resolve(settings.FasterWhisperModelId).DirectoryName;
+        var modelDirectoryName = FasterWhisperModelCatalog.Resolve(settings.ModelId).DirectoryName;
 
         return Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
