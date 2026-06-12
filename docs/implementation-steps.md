@@ -271,6 +271,8 @@ Complete? No
 - Added one timing CSV row per recording session when the session ends in success, cancellation, or recoverable failure.
 - Captured current available timing data: `totalSessionMs`, `recordingDurationMs`, `captureFinalizationMs`, `audioProcessingMs`, `transcriptionMs`, and `clipboardOutputMs` when those stages run.
 - Captured sanitized session metadata currently available: session ID, UTC start/completion timestamps, status, sanitized error category, microphone device ID, transcription provider ID, cleanup provider ID, and output provider IDs.
+- Added timing schema version 2 with a `providerSettingsJson` column containing a compact sanitized provider settings snapshot for performance analysis.
+- `providerSettingsJson` records safe settings such as transcription model ID, language, compute type, timeout seconds, output provider IDs, and path-override booleans; it does not record raw paths, transcript text, cleanup prompt text, secrets, endpoint URLs, or audio content.
 - Left not-yet-implemented stage duration columns empty: `textCleanupMs` and `tempFileCleanupMs`.
 - Run stale temp-file cleanup on startup.
 - Delete captured and processed temp audio after success, cancellation, and failure.

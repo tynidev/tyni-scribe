@@ -19,4 +19,5 @@ public sealed record SessionTimingLogEntry(
     TimeSpan? TranscriptionDuration,
     TimeSpan? TextCleanupDuration,
     TimeSpan? ClipboardOutputDuration,
-    TimeSpan? TempFileCleanupDuration);
+    TimeSpan? TempFileCleanupDuration,
+    string ProviderSettingsJson);

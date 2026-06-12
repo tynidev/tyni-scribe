@@ -225,10 +225,13 @@ Recommended CSV columns:
 ```text
 schemaVersion,sessionId,startedUtc,completedUtc,status,errorCategory,
 microphoneDeviceId,transcriptionProviderId,audioProcessorProviderId,cleanupProviderId,outputProviderIds,
-recordingDurationMs,totalSessionMs,captureFinalizationMs,audioProcessingMs,transcriptionMs,textCleanupMs,clipboardOutputMs,tempFileCleanupMs
+recordingDurationMs,totalSessionMs,captureFinalizationMs,audioProcessingMs,transcriptionMs,textCleanupMs,clipboardOutputMs,tempFileCleanupMs,
+providerSettingsJson
 ```
 
-For stages that did not run, leave the duration field empty rather than writing `0`, so analysis can distinguish skipped work from near-zero work. Provider IDs and microphone IDs are acceptable because they are configuration identifiers. Leave provider ID fields empty when the provider category was disabled or not used for that session, such as `cleanupProviderId` when text cleanup is disabled. Do not include file paths, transcript text, endpoint secrets, raw endpoint URLs, or audio content.
+For stages that did not run, leave the duration field empty rather than writing `0`, so analysis can distinguish skipped work from near-zero work. Provider IDs and microphone IDs are acceptable because they are configuration identifiers. Leave provider ID fields empty when the provider category was disabled or not used for that session, such as `cleanupProviderId` when text cleanup is disabled.
+
+`providerSettingsJson` should contain a compact sanitized snapshot of performance-relevant provider settings, such as transcription model ID, language, compute type, timeout seconds, enabled output provider IDs, and booleans indicating whether advanced path overrides were set. Do not include file paths, transcript text, cleanup prompt text, endpoint secrets, raw endpoint URLs, or audio content.
 
 ## Minimal Interfaces
 

@@ -5,7 +5,7 @@ namespace Tts.App.Services.Timing;
 
 public sealed class CsvSessionTimingLogWriter : ISessionTimingLogWriter
 {
-    private const string Header = "schemaVersion,sessionId,startedUtc,completedUtc,status,errorCategory,microphoneDeviceId,transcriptionProviderId,audioProcessorProviderId,cleanupProviderId,outputProviderIds,recordingDurationMs,totalSessionMs,captureFinalizationMs,audioProcessingMs,transcriptionMs,textCleanupMs,clipboardOutputMs,tempFileCleanupMs";
+    private const string Header = "schemaVersion,sessionId,startedUtc,completedUtc,status,errorCategory,microphoneDeviceId,transcriptionProviderId,audioProcessorProviderId,cleanupProviderId,outputProviderIds,recordingDurationMs,totalSessionMs,captureFinalizationMs,audioProcessingMs,transcriptionMs,textCleanupMs,clipboardOutputMs,tempFileCleanupMs,providerSettingsJson";
 
     private readonly AppPaths _paths;
     private readonly SemaphoreSlim _sync = new(1, 1);
@@ -23,8 +23,7 @@ public sealed class CsvSessionTimingLogWriter : ISessionTimingLogWriter
         {
             Directory.CreateDirectory(_paths.LogDirectory);
 
-            var shouldWriteHeader = !File.Exists(_paths.TimingLogFilePath)
-                || new FileInfo(_paths.TimingLogFilePath).Length == 0;
+            var shouldWriteHeader = await ShouldWriteHeaderAsync(cancellationToken);
 
             await using var stream = new FileStream(
                 _paths.TimingLogFilePath,
@@ -70,10 +69,43 @@ public sealed class CsvSessionTimingLogWriter : ISessionTimingLogWriter
             FormatDuration(entry.TranscriptionDuration),
             FormatDuration(entry.TextCleanupDuration),
             FormatDuration(entry.ClipboardOutputDuration),
-            FormatDuration(entry.TempFileCleanupDuration)
+            FormatDuration(entry.TempFileCleanupDuration),
+            entry.ProviderSettingsJson
         };
 
         return string.Join(',', fields.Select(Escape));
+    }
+
+    private async Task<bool> ShouldWriteHeaderAsync(CancellationToken cancellationToken)
+    {
+        if (!File.Exists(_paths.TimingLogFilePath))
+        {
+            return true;
+        }
+
+        var fileInfo = new FileInfo(_paths.TimingLogFilePath);
+        if (fileInfo.Length == 0)
+        {
+            return true;
+        }
+
+        await using var stream = new FileStream(
+            _paths.TimingLogFilePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite,
+            bufferSize: 4096,
+            useAsync: true);
+        using var reader = new StreamReader(stream);
+        while (await reader.ReadLineAsync(cancellationToken) is { } line)
+        {
+            if (string.Equals(line, Header, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static string FormatDuration(TimeSpan? duration)

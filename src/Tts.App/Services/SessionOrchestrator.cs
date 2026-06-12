@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Text.Json;
 using Tts.App.Configuration;
 using Tts.App.Services.Audio;
 using Tts.App.Services.AudioProcessing;
@@ -807,7 +808,7 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
             var completedUtc = DateTimeOffset.UtcNow;
 
             return new SessionTimingLogEntry(
-                SchemaVersion: 1,
+                SchemaVersion: 2,
                 SessionId,
                 StartedUtc,
                 completedUtc,
@@ -825,7 +826,50 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
                 TranscriptionDuration,
                 TextCleanupDuration: null,
                 ClipboardOutputDuration,
-                TempFileCleanupDuration: null);
+                TempFileCleanupDuration: null,
+                CreateProviderSettingsJson(_snapshot));
+        }
+
+        private static string CreateProviderSettingsJson(SessionSnapshot snapshot)
+        {
+            var transcriptionSettings = snapshot.TranscriptionSettings;
+            var transcriptionModelId = snapshot.TranscriptionProviderId.Equals(FasterWhisperBatchTranscriptionProvider.ProviderId, StringComparison.OrdinalIgnoreCase)
+                ? transcriptionSettings.FasterWhisperModelId
+                : transcriptionSettings.WhisperCppModelId;
+            var computeType = snapshot.TranscriptionProviderId.Equals(FasterWhisperBatchTranscriptionProvider.ProviderId, StringComparison.OrdinalIgnoreCase)
+                ? transcriptionSettings.FasterWhisperComputeType
+                : null;
+
+            var providerSettings = new
+            {
+                transcription = new
+                {
+                    providerId = snapshot.TranscriptionProviderId,
+                    modelId = transcriptionModelId,
+                    language = transcriptionSettings.Language,
+                    computeType,
+                    timeoutSeconds = transcriptionSettings.TimeoutSeconds,
+                    whisperCppExecutablePathOverrideSet = !string.IsNullOrWhiteSpace(transcriptionSettings.WhisperCppExecutablePathOverride),
+                    whisperModelPathOverrideSet = !string.IsNullOrWhiteSpace(transcriptionSettings.WhisperModelPathOverride),
+                    fasterWhisperModelPathOverrideSet = !string.IsNullOrWhiteSpace(transcriptionSettings.FasterWhisperModelPathOverride)
+                },
+                audioProcessing = new
+                {
+                    providerId = snapshot.AudioProcessorProviderId
+                },
+                cleanup = new
+                {
+                    enabled = snapshot.IsCleanupEnabled,
+                    providerId = snapshot.IsCleanupEnabled ? snapshot.CleanupProviderId : null,
+                    promptSet = !string.IsNullOrWhiteSpace(snapshot.CleanupPrompt)
+                },
+                output = new
+                {
+                    providerIds = snapshot.EnabledOutputProviderIds
+                }
+            };
+
+            return JsonSerializer.Serialize(providerSettings);
         }
     }
 
