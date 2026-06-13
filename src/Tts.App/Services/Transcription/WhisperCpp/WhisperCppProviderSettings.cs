@@ -10,7 +10,7 @@ public static class WhisperCppProviderSettings
     public static IReadOnlyList<ProviderSettingDescriptor> Descriptors { get; } = new[]
     {
         new ProviderSettingDescriptor(
-            ProviderSettingKeys.TranscriptionModelId,
+            ProviderSettingKeys.ModelId,
             "Whisper model",
             ProviderSettingControlKind.Select,
             WhisperCppModelCatalog.Models
@@ -18,7 +18,7 @@ public static class WhisperCppProviderSettings
                 .ToArray(),
             Layout: ProviderSettingLayout.Compact),
         new ProviderSettingDescriptor(
-            ProviderSettingKeys.TranscriptionLanguage,
+            ProviderSettingKeys.Language,
             "Language",
             ProviderSettingControlKind.Select,
             new[]
@@ -37,7 +37,7 @@ public static class WhisperCppProviderSettings
             },
             Layout: ProviderSettingLayout.Compact),
         new ProviderSettingDescriptor(
-            ProviderSettingKeys.TranscriptionTimeoutSeconds,
+            ProviderSettingKeys.TimeoutSeconds,
             "Timeout seconds",
             ProviderSettingControlKind.Integer,
             Layout: ProviderSettingLayout.Compact)
@@ -52,13 +52,13 @@ public static class WhisperCppProviderSettings
     {
         var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            [ProviderSettingKeys.TranscriptionModelId] = ResolveModelId(GetValue(settings, ProviderSettingKeys.TranscriptionModelId)),
-            [ProviderSettingKeys.TranscriptionLanguage] = NormalizeLanguage(GetValue(settings, ProviderSettingKeys.TranscriptionLanguage)),
-            [ProviderSettingKeys.TranscriptionTimeoutSeconds] = ResolveTimeoutSeconds(GetValue(settings, ProviderSettingKeys.TranscriptionTimeoutSeconds)).ToString(System.Globalization.CultureInfo.InvariantCulture)
+            [ProviderSettingKeys.ModelId] = ResolveModelId(GetValue(settings, ProviderSettingKeys.ModelId)),
+            [ProviderSettingKeys.Language] = NormalizeLanguage(GetValue(settings, ProviderSettingKeys.Language)),
+            [ProviderSettingKeys.TimeoutSeconds] = ResolveTimeoutSeconds(GetValue(settings, ProviderSettingKeys.TimeoutSeconds)).ToString(System.Globalization.CultureInfo.InvariantCulture)
         };
 
-        AddOptionalValue(normalized, ProviderSettingKeys.TranscriptionExecutablePathOverride, GetValue(settings, ProviderSettingKeys.TranscriptionExecutablePathOverride));
-        AddOptionalValue(normalized, ProviderSettingKeys.TranscriptionModelPathOverride, GetValue(settings, ProviderSettingKeys.TranscriptionModelPathOverride));
+        AddOptionalValue(normalized, ProviderSettingKeys.ExecutablePathOverride, GetValue(settings, ProviderSettingKeys.ExecutablePathOverride));
+        AddOptionalValue(normalized, ProviderSettingKeys.ModelPathOverride, GetValue(settings, ProviderSettingKeys.ModelPathOverride));
 
         return normalized;
     }
@@ -68,11 +68,11 @@ public static class WhisperCppProviderSettings
         var normalized = Normalize(settings);
 
         return new WhisperCppTranscriptionSettings(
-            normalized[ProviderSettingKeys.TranscriptionModelId],
-            GetValue(normalized, ProviderSettingKeys.TranscriptionExecutablePathOverride),
-            GetValue(normalized, ProviderSettingKeys.TranscriptionModelPathOverride),
-            normalized[ProviderSettingKeys.TranscriptionLanguage],
-            ResolveTimeoutSeconds(normalized[ProviderSettingKeys.TranscriptionTimeoutSeconds]));
+            normalized[ProviderSettingKeys.ModelId],
+            GetValue(normalized, ProviderSettingKeys.ExecutablePathOverride),
+            GetValue(normalized, ProviderSettingKeys.ModelPathOverride),
+            normalized[ProviderSettingKeys.Language],
+            ResolveTimeoutSeconds(normalized[ProviderSettingKeys.TimeoutSeconds]));
     }
 
     private static string ResolveModelId(string? modelId)

@@ -870,19 +870,19 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
         private static string CreateProviderSettingsJson(SessionSnapshot snapshot)
         {
             var transcriptionSettings = snapshot.TranscriptionProviderSettings;
-            var computeType = GetProviderSettingValue(transcriptionSettings, ProviderSettingKeys.TranscriptionComputeType);
+            var computeType = GetProviderSettingValue(transcriptionSettings, ProviderSettingKeys.ComputeType);
 
             var providerSettings = new
             {
                 transcription = new
                 {
                     providerId = snapshot.TranscriptionProviderId,
-                    modelId = GetProviderSettingValue(transcriptionSettings, ProviderSettingKeys.TranscriptionModelId),
-                    language = GetProviderSettingValue(transcriptionSettings, ProviderSettingKeys.TranscriptionLanguage),
+                    modelId = GetProviderSettingValue(transcriptionSettings, ProviderSettingKeys.ModelId),
+                    language = GetProviderSettingValue(transcriptionSettings, ProviderSettingKeys.Language),
                     computeType,
-                    timeoutSeconds = GetProviderSettingValue(transcriptionSettings, ProviderSettingKeys.TranscriptionTimeoutSeconds),
-                    executablePathOverrideSet = HasProviderSettingValue(transcriptionSettings, ProviderSettingKeys.TranscriptionExecutablePathOverride),
-                    modelPathOverrideSet = HasProviderSettingValue(transcriptionSettings, ProviderSettingKeys.TranscriptionModelPathOverride)
+                    timeoutSeconds = GetProviderSettingValue(transcriptionSettings, ProviderSettingKeys.TimeoutSeconds),
+                    executablePathOverrideSet = HasProviderSettingValue(transcriptionSettings, ProviderSettingKeys.ExecutablePathOverride),
+                    modelPathOverrideSet = HasProviderSettingValue(transcriptionSettings, ProviderSettingKeys.ModelPathOverride)
                 },
                 audioProcessing = new
                 {

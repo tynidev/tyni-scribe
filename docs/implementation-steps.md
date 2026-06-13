@@ -75,6 +75,7 @@ Complete? Yes
 - Added typed JSON configuration stored under `%AppData%/SpeechToTextDaemon/config.json`.
 - Included a config version field, without migration machinery until version 2 exists.
 - Kept startup lightweight by loading settings through a hosted warmup service before showing the settings window.
+- Service-layer infrastructure is organized by responsibility: orchestration/session state under `Services/Orchestration`, hotkeys under `Services/Hotkeys`, and provider-setting descriptor primitives under `Services/ProviderSettings`.
 
 ### 2. State Machine, Hotkeys, And Cancellation
 
@@ -239,6 +240,7 @@ Complete? No
 - Replaced the settings-window free-text transcription provider field with a dropdown populated from registered provider metadata.
 - The dropdown stores the selected provider ID in the existing config field and falls back to `whisper-cpp-local` when saved settings reference an unavailable provider.
 - Transcriber implementation files now live under provider folders: `FasterWhisper`, `WhisperCpp`, `WhisperNative`, and `WhisperWarm`.
+- Shared provider-setting descriptor primitives now live under `Services/ProviderSettings`, while provider-specific parser/default classes stay inside provider folders.
 - Transcription provider settings are stored per provider ID, so `whisper-cpp-local`, `whisper-cpp-warm-local`, `whisper-cpp-native-local`, and `faster-whisper-local` each keep independent model, language, timeout, and provider-specific options.
 - Audio processing and output provider settings also use provider-ID keyed storage; the current built-in audio/output providers have empty setting dictionaries, but future providers can add descriptors without changing the config shape.
 - Provider-specific settings now react to the selected provider; whisper.cpp-style model, language, and timeout controls are backed by independent provider-owned settings for the CLI, warm worker, and native local providers.

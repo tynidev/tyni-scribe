@@ -12,7 +12,7 @@ public static class FasterWhisperProviderSettings
     public static IReadOnlyList<ProviderSettingDescriptor> Descriptors { get; } = new[]
     {
         new ProviderSettingDescriptor(
-            ProviderSettingKeys.TranscriptionModelId,
+            ProviderSettingKeys.ModelId,
             "Whisper model",
             ProviderSettingControlKind.Select,
             FasterWhisperModelCatalog.Models
@@ -20,7 +20,7 @@ public static class FasterWhisperProviderSettings
                 .ToArray(),
             Layout: ProviderSettingLayout.Compact),
         new ProviderSettingDescriptor(
-            ProviderSettingKeys.TranscriptionComputeType,
+            ProviderSettingKeys.ComputeType,
             "Compute",
             ProviderSettingControlKind.Select,
             new[]
@@ -33,7 +33,7 @@ public static class FasterWhisperProviderSettings
             },
             Layout: ProviderSettingLayout.Compact),
         new ProviderSettingDescriptor(
-            ProviderSettingKeys.TranscriptionLanguage,
+            ProviderSettingKeys.Language,
             "Language",
             ProviderSettingControlKind.Select,
             new[]
@@ -52,7 +52,7 @@ public static class FasterWhisperProviderSettings
             },
             Layout: ProviderSettingLayout.Compact),
         new ProviderSettingDescriptor(
-            ProviderSettingKeys.TranscriptionTimeoutSeconds,
+            ProviderSettingKeys.TimeoutSeconds,
             "Timeout seconds",
             ProviderSettingControlKind.Integer,
             Layout: ProviderSettingLayout.Compact)
@@ -67,13 +67,13 @@ public static class FasterWhisperProviderSettings
     {
         var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            [ProviderSettingKeys.TranscriptionModelId] = ResolveModelId(GetValue(settings, ProviderSettingKeys.TranscriptionModelId)),
-            [ProviderSettingKeys.TranscriptionComputeType] = ResolveComputeType(GetValue(settings, ProviderSettingKeys.TranscriptionComputeType)),
-            [ProviderSettingKeys.TranscriptionLanguage] = NormalizeLanguage(GetValue(settings, ProviderSettingKeys.TranscriptionLanguage)),
-            [ProviderSettingKeys.TranscriptionTimeoutSeconds] = ResolveTimeoutSeconds(GetValue(settings, ProviderSettingKeys.TranscriptionTimeoutSeconds)).ToString(System.Globalization.CultureInfo.InvariantCulture)
+            [ProviderSettingKeys.ModelId] = ResolveModelId(GetValue(settings, ProviderSettingKeys.ModelId)),
+            [ProviderSettingKeys.ComputeType] = ResolveComputeType(GetValue(settings, ProviderSettingKeys.ComputeType)),
+            [ProviderSettingKeys.Language] = NormalizeLanguage(GetValue(settings, ProviderSettingKeys.Language)),
+            [ProviderSettingKeys.TimeoutSeconds] = ResolveTimeoutSeconds(GetValue(settings, ProviderSettingKeys.TimeoutSeconds)).ToString(System.Globalization.CultureInfo.InvariantCulture)
         };
 
-        AddOptionalValue(normalized, ProviderSettingKeys.TranscriptionModelPathOverride, GetValue(settings, ProviderSettingKeys.TranscriptionModelPathOverride));
+        AddOptionalValue(normalized, ProviderSettingKeys.ModelPathOverride, GetValue(settings, ProviderSettingKeys.ModelPathOverride));
 
         return normalized;
     }
@@ -83,11 +83,11 @@ public static class FasterWhisperProviderSettings
         var normalized = Normalize(settings);
 
         return new FasterWhisperTranscriptionSettings(
-            normalized[ProviderSettingKeys.TranscriptionModelId],
-            GetValue(normalized, ProviderSettingKeys.TranscriptionModelPathOverride),
-            normalized[ProviderSettingKeys.TranscriptionLanguage],
-            normalized[ProviderSettingKeys.TranscriptionComputeType],
-            ResolveTimeoutSeconds(normalized[ProviderSettingKeys.TranscriptionTimeoutSeconds]));
+            normalized[ProviderSettingKeys.ModelId],
+            GetValue(normalized, ProviderSettingKeys.ModelPathOverride),
+            normalized[ProviderSettingKeys.Language],
+            normalized[ProviderSettingKeys.ComputeType],
+            ResolveTimeoutSeconds(normalized[ProviderSettingKeys.TimeoutSeconds]));
     }
 
     private static string ResolveModelId(string? modelId)
@@ -100,7 +100,7 @@ public static class FasterWhisperProviderSettings
     private static string ResolveComputeType(string? computeType)
     {
         return Descriptors
-            .First(descriptor => descriptor.Key.Equals(ProviderSettingKeys.TranscriptionComputeType, StringComparison.OrdinalIgnoreCase))
+            .First(descriptor => descriptor.Key.Equals(ProviderSettingKeys.ComputeType, StringComparison.OrdinalIgnoreCase))
             .Options!
             .Any(option => option.Value.Equals(computeType, StringComparison.OrdinalIgnoreCase))
             ? computeType!.Trim()
