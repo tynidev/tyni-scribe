@@ -4,6 +4,7 @@ namespace Tts.Core.Services.Transcription;
 
 public static class WhisperNativeProviderSettings
 {
+    private const string DefaultModelId = WhisperCppModelCatalog.LargeV3TurboModelId;
     private const string DefaultLanguage = "en";
     private const int DefaultTimeoutSeconds = 600;
 
@@ -77,7 +78,7 @@ public static class WhisperNativeProviderSettings
     {
         return WhisperCppModelCatalog.Models.Any(model => model.Id.Equals(modelId, StringComparison.OrdinalIgnoreCase))
             ? modelId!
-            : WhisperCppModelCatalog.TinyEnglishModelId;
+            : DefaultModelId;
     }
 
     private static string NormalizeLanguage(string? language)

@@ -228,7 +228,7 @@ Status: `In Progress`
 Complete? No
 
 - Registered local batch transcription providers: `whisper-cpp-local` for the current CLI adapter and `whisper-cpp-native-local` for the in-process native DLL wrapper.
-- `whisper-cpp-native-local` is the default transcription provider for new configs, using the tiny English model by default.
+- `whisper-cpp-native-local` is the default transcription provider for new configs, using the Large v3 Turbo model by default.
 - `paste` is the default output provider for new configs, with `clipboard` still available as the safer manual-paste option.
 - Replaced the settings-window free-text transcription provider field with a dropdown populated from registered provider metadata.
 - The dropdown stores the selected provider ID in the existing config field and falls back to `whisper-cpp-local` when saved settings reference an unavailable provider.
