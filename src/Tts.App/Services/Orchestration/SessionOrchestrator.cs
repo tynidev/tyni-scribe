@@ -1,12 +1,14 @@
 using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
-using Tts.App.Configuration;
-using Tts.App.Services.Audio;
-using Tts.App.Services.AudioProcessing;
 using Tts.App.Services.Output;
-using Tts.App.Services.Timing;
-using Tts.App.Services.Transcription;
+using Tts.Core.Configuration;
+using Tts.Core.Services;
+using Tts.Core.Services.Audio;
+using Tts.Core.Services.AudioProcessing;
+using Tts.Core.Services.Output;
+using Tts.Core.Services.Timing;
+using Tts.Core.Services.Transcription;
 
 namespace Tts.App.Services;
 
@@ -870,7 +872,6 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
         private static string CreateProviderSettingsJson(SessionSnapshot snapshot)
         {
             var transcriptionSettings = snapshot.TranscriptionProviderSettings;
-            var computeType = GetProviderSettingValue(transcriptionSettings, ProviderSettingKeys.ComputeType);
 
             var providerSettings = new
             {
@@ -879,7 +880,6 @@ public sealed class SessionOrchestrator : ISessionOrchestrator
                     providerId = snapshot.TranscriptionProviderId,
                     modelId = GetProviderSettingValue(transcriptionSettings, ProviderSettingKeys.ModelId),
                     language = GetProviderSettingValue(transcriptionSettings, ProviderSettingKeys.Language),
-                    computeType,
                     timeoutSeconds = GetProviderSettingValue(transcriptionSettings, ProviderSettingKeys.TimeoutSeconds),
                     executablePathOverrideSet = HasProviderSettingValue(transcriptionSettings, ProviderSettingKeys.ExecutablePathOverride),
                     modelPathOverrideSet = HasProviderSettingValue(transcriptionSettings, ProviderSettingKeys.ModelPathOverride)

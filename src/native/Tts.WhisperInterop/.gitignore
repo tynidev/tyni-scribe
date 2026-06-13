@@ -1,0 +1,28 @@
+# CMake in-source build output
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+build.ninja
+.ninja_deps
+.ninja_log
+install_manifest.txt
+
+# Visual Studio/CMake user state
+.vs/
+CMakeUserPresets.json
+*.user
+*.suo
+
+# Native build artifacts
+Debug/
+Release/
+x64/
+out/
+*.dll
+*.pdb
+*.exp
+*.lib
+*.ilk
+*.obj
+*.manifest

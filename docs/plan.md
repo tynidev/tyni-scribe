@@ -101,18 +101,6 @@ The app should support both provider types:
 
 Streaming transcription is in scope, but streaming output is not. Streaming providers may produce partial text internally or for a future preview UI, but the first output path only uses the final transcript after Stop.
 
-#### faster-whisper / CTranslate2 Local Provider
-
-The planned `faster-whisper-local` provider remains a batch provider and should return final transcript text only. It should use a Python-free normal runtime path if practical, with C# calling a Windows x64 native DLL through a C ABI.
-
-The native project scaffold lives under `src/native/Tts.CTranslate2Interop` and reserves an ABI for creating an engine, loading a converted CTranslate2 model directory, transcribing a WAV, requesting cancellation, unloading the model, disposing native memory, reading a sanitized last error, and freeing returned strings. The app should serialize access to this engine until CTranslate2 model/thread-safety is proven for this usage.
-
-Until the direct C++ implementation is complete, the runnable implementation uses an isolated local Python process under `%LOCALAPPDATA%\tts\tools\faster-whisper-python` to call `faster-whisper`. This keeps the provider boundary stable and exercises the CTranslate2 model path, but it is not the final Python-free native design.
-
-This provider must not reuse whisper.cpp ggml `.bin` files. Its models belong under `%LOCALAPPDATA%\tts\models\faster-whisper` as converted CTranslate2 model directories. Normal UI controls should keep friendly model IDs and compute-type choices instead of exposing raw paths.
-
-Direct CTranslate2 integration is feasible but incomplete: CTranslate2 supplies the optimized Whisper model runtime, while a full native app provider still needs Whisper audio preprocessing, log-mel feature extraction, 30-second chunking, tokenizer loading, prompt token construction, generation result decoding, and aggregation without relying on Python at runtime.
-
 ### Text Cleanup Provider
 
 Optionally transforms the final transcript with a configured LLM prompt. For first pass use a No-Op text cleanup provider that does not change the text at all.
@@ -297,7 +285,7 @@ Add richer metadata only when the UI needs it, such as language support, timesta
 
 Provider-specific settings should be owned by the provider and exposed in product terms. The shared provider-setting descriptor primitives belong under the service/provider-settings contract, while persisted values belong under configuration and provider-specific parser/default logic belongs inside each provider folder. For example, a local whisper.cpp provider can expose a friendly model/profile selection and language setting, while the executable path and raw model file paths remain app-managed deployment details. Advanced path overrides may exist in configuration for development or portable installs, but they should not be part of the normal settings UI. The first local whisper.cpp model catalog should include tiny/base/small English models plus Large v3 Turbo, with model IDs mapped internally to app-managed model files.
 
-Warm local whisper.cpp model reuse is available through two local provider paths behind the existing batch provider boundary. `whisper-cpp-warm-local` uses a long-lived local `whisper-server.exe` worker that keeps one selected model loaded and restarts when the selected model or language changes. `whisper-cpp-native-local` uses the Windows x64 `tts-whisper-interop.dll` C ABI wrapper built from the pinned `ggml-org/whisper.cpp` submodule under `src/native/Tts.WhisperInterop`. The existing `whisper-cli.exe` provider remains the default compatibility path while the warm and native paths mature through full app-session testing and packaging polish.
+Warm local whisper.cpp model reuse is available through `whisper-cpp-native-local`, which uses the Windows x64 `tts-whisper-interop.dll` C ABI wrapper built from the pinned `ggml-org/whisper.cpp` submodule under `src/native/Tts.WhisperInterop`. The existing `whisper-cpp-local` provider remains available as the `whisper-cli.exe` compatibility path.
 
 ## Configuration
 

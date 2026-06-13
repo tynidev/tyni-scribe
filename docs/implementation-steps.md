@@ -37,9 +37,9 @@ Complete these checks before starting application implementation.
 | Clipboard access | Clipboard output provider | `Complete` | Yes | Verified non-destructive Win32 `OpenClipboard`/`CloseClipboard` access. |
 | whisper.cpp executable | First local batch transcription provider | `Complete` | Yes | Installed v1.8.6 at `%LOCALAPPDATA%/tts/tools/whisper.cpp/v1.8.6/Release/whisper-cli.exe` and verified `--help`. |
 | Whisper model files | First local batch transcription provider | `Complete` | Yes | Installed `ggml-tiny.en.bin`, `ggml-base.en.bin`, `ggml-small.en.bin`, and `ggml-large-v3-turbo.bin` under `%LOCALAPPDATA%/tts/models/whisper`; tiny completed a CLI smoke test. |
-| Warm local whisper.cpp providers | Warm local batch transcription providers | `In Progress` | No | Added `whisper-cpp-warm-local` using installed `whisper-server.exe` and built `tts-whisper-interop.dll` from pinned `ggml-org/whisper.cpp` submodule source for `whisper-cpp-native-local`; full microphone-session validation and packaging polish remain. |
+| Native whisper.cpp provider | Warm local batch transcription provider | `In Progress` | No | Built `tts-whisper-interop.dll` from pinned `ggml-org/whisper.cpp` submodule source for `whisper-cpp-native-local`; full microphone-session validation and packaging polish remain. |
 | CUDA Toolkit 12.9 | GPU-backed native whisper.cpp provider | `Complete` | Yes | Installed `Nvidia.CUDA` 12.9 with winget; verified `nvcc` 12.9.86 and rebuilt `tts-whisper-interop.dll` with `GGML_CUDA=ON`. |
-| CTranslate2 / faster-whisper provider | GPU-backed local provider path | `In Progress` | No | Added `faster-whisper-local` with an experimental isolated Python process bridge using faster-whisper/CTranslate2, downloaded the four configured CT2 model directories, and kept the `Tts.CTranslate2Interop` C ABI scaffold for the future Python-free native port. |
+| CLI transcription and benchmark harness | Provider timing comparisons | `In Progress` | No | Split shared provider logic into `Tts.Core`, added focused single-file `Tts.Cli transcribe`, and added PowerShell LibriSpeech prep/benchmark scripts. Full 1000-file dataset benchmark runs remain to be executed. |
 | Remote streaming provider credentials or mock provider decision | First streaming transcription provider | `Complete` | Yes | Use a local mock streaming provider for v1 so no remote credentials are required yet. |
 | Serilog file sink package | Sanitized rolling file logs | `Complete` | Yes | Restored `Serilog` and `Serilog.Sinks.File` in the temporary WPF project. |
 | Packaging tool decision | Single-file publish | `Complete` | Yes | Use a self-contained single-file Windows publish instead of an installer/MSIX for the first distribution path. |
@@ -70,12 +70,15 @@ Status: `Complete`
 Complete? Yes
 
 - Created a C#/.NET 8 WPF Windows utility under `src/Tts.App` with a solution file at the repository root.
+- Split shared non-UI configuration, paths, audio/provider abstractions, provider implementations, timing primitives, and native engine wrappers into `src/Tts.Core` so the WPF app and CLI can consume the same provider layer.
+- Added `src/Tts.Cli` as a focused single-file transcription CLI that writes transcript text to stdout and can write a metrics JSON sidecar for benchmark scripts.
 - Added hosted startup services and dependency injection through `Microsoft.Extensions.Hosting`.
 - Added tray lifecycle behavior: open settings, minimize or close settings to tray, and quit from the tray menu.
 - Added typed JSON configuration stored under `%AppData%/SpeechToTextDaemon/config.json`.
 - Included a config version field, without migration machinery until version 2 exists.
 - Kept startup lightweight by loading settings through a hosted warmup service before showing the settings window.
 - Service-layer infrastructure is organized by responsibility: orchestration/session state under `Services/Orchestration`, hotkeys under `Services/Hotkeys`, and provider-setting descriptor primitives under `Services/ProviderSettings`.
+- Shared provider registrations live behind `AddTtsCoreServices()` in `Tts.Core`; WPF-only registrations remain in `App.xaml.cs`.
 
 ### 2. State Machine, Hotkeys, And Cancellation
 
@@ -188,14 +191,8 @@ Complete? Yes
 - Cancellation and timeout kill the whisper.cpp process tree and return through the session cancellation or recoverable failure path.
 - Captured and processor-created temp files are deleted after success, cancellation, and recoverable failure.
 - Extracted shared whisper.cpp runtime path resolution so the CLI provider and future native provider use the same model ID mapping and advanced model path override behavior.
-- Added warm local whisper.cpp provider support with provider ID `whisper-cpp-warm-local`.
-- The warm worker provider starts the installed `whisper-server.exe` lazily, keeps the selected model loaded across sessions, restarts when the selected model or language changes, sends completed WAV files through local `/inference`, and stops the worker on cancellation, timeout, provider shutdown, or app exit.
 - Added native local whisper.cpp provider support with provider ID `whisper-cpp-native-local`.
-- Added faster-whisper/CTranslate2 local GPU provider support with provider ID `faster-whisper-local`. It appears in the provider dropdown, keeps separate CTranslate2 model and compute-type settings, and is not the default provider.
-- Added an experimental process bridge that runs `faster-whisper` from `%LOCALAPPDATA%/tts/tools/faster-whisper-python`, feeds it the completed WAV path, and returns final transcript text only.
-- Downloaded the four configured CTranslate2 model directories under `%LOCALAPPDATA%/tts/models/faster-whisper`: `tiny-en`, `base-en`, `small-en`, and `large-v3-turbo`.
 - Added the native C ABI contract and implementation under `src/native/Tts.WhisperInterop`, pinned upstream `ggml-org/whisper.cpp` as a submodule under `src/native/Tts.WhisperInterop/third_party/whisper.cpp`, and built `build/native/Tts.WhisperInterop/tts-whisper-interop.dll`.
-- Added a native C ABI scaffold under `src/native/Tts.CTranslate2Interop` for `tts-ctranslate2-interop.dll`. It reserves create/load/transcribe/cancel/unload/dispose/last-error/free-string exports but returns sanitized provider-unavailable statuses until the CTranslate2 Whisper pipeline is implemented.
 - Rebuilt `tts-whisper-interop.dll` with `GGML_CUDA=ON` against CUDA Toolkit 12.9 for the RTX 4090.
 - The app project copies `tts-whisper-interop.dll` into the WPF output directory when the native DLL has been built, and copies CUDA runtime dependencies `cudart64_12.dll`, `cublas64_12.dll`, and `cublasLt64_12.dll` when CUDA Toolkit 12.9 is installed.
 - Direct native smoke test passed against the tiny model using `tts_whisper_engine_create`, `tts_whisper_engine_load_model`, `tts_whisper_engine_transcribe_wav`, and `tts_whisper_engine_dispose`; whisper.cpp reported `ggml_cuda_init`, `NVIDIA GeForce RTX 4090`, and `using CUDA0 backend`.
@@ -205,12 +202,8 @@ Future-step notes:
 
 - Step 8 should replace the free-text provider ID fields with provider selection controls backed by registered provider metadata.
 - Step 8 should keep provider executable paths and raw model file paths out of the normal UI; expose friendly provider settings such as model/profile and language instead.
-- The warm and native providers should become default candidates only after full microphone-session validation, model switch behavior, cancellation, timeout, and packaging paths are proven. Until then, `whisper-cpp-local` remains the compatibility path.
-- The warm worker and native wrapper should return only sanitized errors and must not include temp audio paths, transcript text, raw stderr, endpoint secrets, raw endpoint URLs, or audio content in diagnostics.
-- `faster-whisper-local` must use converted CTranslate2 model directories under `%LOCALAPPDATA%/tts/models/faster-whisper`; it cannot reuse whisper.cpp ggml `.bin` files.
-- CTranslate2 has official C++ APIs and Windows/CMake/CUDA support, but the future Python-free native app path still needs native WAV resampling, Whisper log-mel feature extraction, 30-second chunking, tokenizer loading, prompt construction, token decoding, and segment aggregation.
-- The current process bridge is intentionally a practical integration step for exercising the faster-whisper pipeline; the direct C++ provider remains future work.
-- Pin CTranslate2 before enabling real native transcription. Current docs recommend documenting a specific tag such as `v4.8.0`; recent faster-whisper GPU builds require CUDA 12 and cuDNN 9, while older CTranslate2 versions used different cuDNN pairings.
+- The native provider should become the default candidate only after full microphone-session validation, model switch behavior, cancellation, timeout, and packaging paths are proven. Until then, `whisper-cpp-local` remains the compatibility path.
+- The native wrapper should return only sanitized errors and must not include temp audio paths, transcript text, raw stderr, endpoint secrets, raw endpoint URLs, or audio content in diagnostics.
 - Keep `whisper-cpp-native-local` as the default provider, with `whisper-cpp-local` remaining available as the compatibility fallback.
 - Step 9 text cleanup should run after this batch transcription result and before the output provider pipeline.
 - Step 10 sanitized file logging should log provider IDs and sanitized stage outcomes only; do not add whisper stdout, transcript text, raw stderr, or temp file paths to logs.
@@ -234,17 +227,16 @@ Status: `In Progress`
 
 Complete? No
 
-- Registered multiple local batch transcription providers: `whisper-cpp-local` for the current CLI adapter, `whisper-cpp-warm-local` for the long-lived local worker, `whisper-cpp-native-local` for the in-process native DLL wrapper, and `faster-whisper-local` as a non-default faster-whisper/CTranslate2 provider.
+- Registered local batch transcription providers: `whisper-cpp-local` for the current CLI adapter and `whisper-cpp-native-local` for the in-process native DLL wrapper.
 - `whisper-cpp-native-local` is the default transcription provider for new configs, using the tiny English model by default.
 - `paste` is the default output provider for new configs, with `clipboard` still available as the safer manual-paste option.
 - Replaced the settings-window free-text transcription provider field with a dropdown populated from registered provider metadata.
 - The dropdown stores the selected provider ID in the existing config field and falls back to `whisper-cpp-local` when saved settings reference an unavailable provider.
-- Transcriber implementation files now live under provider folders: `FasterWhisper`, `WhisperCpp`, `WhisperNative`, and `WhisperWarm`.
+- Transcriber implementation files now live under provider folders: `WhisperCpp` and `WhisperNative`.
 - Shared provider-setting descriptor primitives now live under `Services/ProviderSettings`, while provider-specific parser/default classes stay inside provider folders.
-- Transcription provider settings are stored per provider ID, so `whisper-cpp-local`, `whisper-cpp-warm-local`, `whisper-cpp-native-local`, and `faster-whisper-local` each keep independent model, language, timeout, and provider-specific options.
+- Transcription provider settings are stored per provider ID, so `whisper-cpp-local` and `whisper-cpp-native-local` each keep independent model, language, timeout, and provider-specific options.
 - Audio processing and output provider settings also use provider-ID keyed storage; the current built-in audio/output providers have empty setting dictionaries, but future providers can add descriptors without changing the config shape.
-- Provider-specific settings now react to the selected provider; whisper.cpp-style model, language, and timeout controls are backed by independent provider-owned settings for the CLI, warm worker, and native local providers.
-- Provider-specific settings now also show faster-whisper model, compute type, language, and timeout only when `faster-whisper-local` is selected.
+- Provider-specific settings now react to the selected provider; whisper.cpp-style model, language, and timeout controls are backed by independent provider-owned settings for the CLI and native local providers.
 
 Remaining work:
 

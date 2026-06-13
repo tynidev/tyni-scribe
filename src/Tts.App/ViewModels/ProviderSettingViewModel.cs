@@ -1,5 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using Tts.App.Services;
+using Tts.Core.Services;
 
 namespace Tts.App.ViewModels;
 

@@ -1,0 +1,31 @@
+{
+  "runs": [
+    {
+      "label": "cli-large-v3-turbo",
+      "provider": "whisper-cpp-local",
+      "model": "large-v3-turbo",
+      "language": "en",
+      "timeoutSeconds": 600,
+      "settings": {
+        "modelId": "large-v3-turbo",
+        "language": "en",
+        "timeoutSeconds": "600",
+        "executablePathOverride": null,
+        "modelPathOverride": null
+      }
+    },
+    {
+      "label": "native-large-v3-turbo",
+      "provider": "whisper-cpp-native-local",
+      "model": "large-v3-turbo",
+      "language": "en",
+      "timeoutSeconds": 600,
+      "settings": {
+        "modelId": "large-v3-turbo",
+        "language": "en",
+        "timeoutSeconds": "600",
+        "modelPathOverride": null
+      }
+    }
+  ]
+}

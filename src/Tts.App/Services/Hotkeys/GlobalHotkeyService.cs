@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Input;
 using System.Windows.Interop;
 using Microsoft.Extensions.Hosting;
-using Tts.App.Configuration;
+using Tts.Core.Configuration;
 using WpfApplication = System.Windows.Application;
 
 namespace Tts.App.Services;

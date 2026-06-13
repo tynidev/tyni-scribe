@@ -2,18 +2,15 @@
 
 This directory holds the native whisper.cpp interop boundary for the in-process local transcription provider.
 
-The WPF app now has two warm local whisper.cpp paths:
-
-- `whisper-cpp-warm-local` uses the installed `whisper-server.exe` worker process. That worker loads one selected model and keeps it warm across transcription sessions, then the app restarts it when the selected model or language changes.
-- `whisper-cpp-native-local` uses `tts-whisper-interop.dll`, built from the pinned `ggml-org/whisper.cpp` submodule under `third_party/whisper.cpp`.
+The WPF app uses `whisper-cpp-native-local` as the in-process warm local whisper.cpp path. It calls `tts-whisper-interop.dll`, built from the pinned `ggml-org/whisper.cpp` submodule under `third_party/whisper.cpp`.
 
 The first implementation target is Windows x64. The WPF app calls a small native DLL named `tts-whisper-interop.dll` through P/Invoke. The DLL owns the whisper.cpp context, keeps one selected model loaded across transcription sessions, unloads that model when the selected model changes, and releases all native memory on dispose.
 
-The existing `whisper-cpp-local` CLI provider remains the default compatibility path until the warm worker and native DLL providers finish full app-session validation and packaging polish.
+The existing `whisper-cpp-local` CLI provider remains available as the compatibility path when native interop is unavailable.
 
 The app expects model files from the `ggerganov/whisper.cpp` Hugging Face repository under `%LOCALAPPDATA%\tts\models\whisper`; see the root `build.md` for the exact model download commands.
 
-The CLI and warm-worker fallback executables, `whisper-cli.exe` and `whisper-server.exe`, come from official whisper.cpp GitHub releases rather than winget; see the root `build.md` for fallback-provider setup.
+The fallback executable `whisper-cli.exe` comes from official whisper.cpp GitHub releases rather than winget; see the root `build.md` for fallback-provider setup.
 
 ## Layout
 

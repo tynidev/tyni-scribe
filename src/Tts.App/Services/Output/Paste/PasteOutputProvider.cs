@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Windows.Threading;
-using Tts.App.Services;
+using Tts.Core.Services;
+using Tts.Core.Services.Output;
 using WpfApplication = System.Windows.Application;
 using WpfClipboard = System.Windows.Clipboard;
 

@@ -5,12 +5,14 @@ using System.IO;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Tts.App.Configuration;
 using Tts.App.Services;
-using Tts.App.Services.Audio;
-using Tts.App.Services.AudioProcessing;
 using Tts.App.Services.Output;
-using Tts.App.Services.Transcription;
+using Tts.Core.Configuration;
+using Tts.Core.Services;
+using Tts.Core.Services.Audio;
+using Tts.Core.Services.AudioProcessing;
+using Tts.Core.Services.Output;
+using Tts.Core.Services.Transcription;
 
 namespace Tts.App.ViewModels;
 
@@ -608,16 +610,6 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
         if (providerId.Equals(WhisperCppBatchTranscriptionProvider.ProviderId, StringComparison.OrdinalIgnoreCase))
         {
             return WhisperCppProviderSettings.CreateDefaultValues();
-        }
-
-        if (providerId.Equals(FasterWhisperBatchTranscriptionProvider.ProviderId, StringComparison.OrdinalIgnoreCase))
-        {
-            return FasterWhisperProviderSettings.CreateDefaultValues();
-        }
-
-        if (providerId.Equals(WhisperWarmBatchTranscriptionProvider.ProviderId, StringComparison.OrdinalIgnoreCase))
-        {
-            return WhisperWarmProviderSettings.CreateDefaultValues();
         }
 
         if (providerId.Equals(WhisperNativeBatchTranscriptionProvider.ProviderId, StringComparison.OrdinalIgnoreCase))

@@ -11,7 +11,7 @@ Audio capture:        WASAPI shared mode first, ASIO as an advanced optional bac
 Audio libraries:      NAudio for first build; native C++ bridge with RtAudio, PortAudio, JUCE, or ASIO SDK if ASIO needs to become serious
 Critical paths:       C++ native layer for ASIO callbacks, ring buffers, sample conversion, and optional local model bindings
 Transcription:        Provider interface in C#, with local and remote provider adapters
-Local STT option:     whisper.cpp, faster-whisper, or ONNX Runtime behind a provider boundary
+Local STT option:     whisper.cpp or ONNX Runtime behind a provider boundary
 Config:               Typed JSON config in AppData
 Logging:              Serilog with sanitized rolling file logs
 Packaging:            MSIX or single-file self-contained installer
@@ -162,7 +162,6 @@ Good first provider choices:
 | Provider Type | Stack | Why |
 | --- | --- | --- |
 | Local batch | `whisper.cpp` executable or native library | Simple, private, works well with completed WAV files. |
-| Local batch / streaming-ish | faster-whisper through a local Python service | Very good quality/performance, but adds Python runtime complexity. |
 | Local Windows-native | ONNX Runtime with Whisper models | Clean deployment story if model support is enough for the target quality. |
 | Remote batch/streaming | OpenAI, Azure Speech, Deepgram, etc. | Easy high-quality provider adapters, but sends audio/text off-device. |
 

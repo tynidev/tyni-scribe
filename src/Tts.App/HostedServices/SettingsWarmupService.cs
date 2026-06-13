@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Hosting;
-using Tts.App.Configuration;
+using Tts.Core.Configuration;
 
 namespace Tts.App.HostedServices;
 

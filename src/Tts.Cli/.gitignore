@@ -1,0 +1,22 @@
+# .NET build output
+bin/
+obj/
+artifacts/
+publish/
+
+# Local project/user state
+*.user
+*.rsuser
+*.suo
+*.userosscache
+
+# Test and diagnostics output
+TestResults/
+coverage/
+coverage.*
+*.coverage
+*.coveragexml
+*.trx
+*.log
+*.tmp
+*.temp
