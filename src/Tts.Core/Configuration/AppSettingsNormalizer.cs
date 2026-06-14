@@ -10,37 +10,38 @@ public static class AppSettingsNormalizer
     {
         settings.ConfigVersion = AppSettings.CurrentConfigVersion;
 
-        settings.StartStopHotkey ??= HotkeySettings.FromGesture("Ctrl+Alt+Space");
-        settings.CancelHotkey ??= HotkeySettings.FromGesture("Ctrl+Shift+Space");
-        if (settings.CancelHotkey.Gesture.Equals("Ctrl+Alt+Escape", StringComparison.OrdinalIgnoreCase))
+        settings.StartStopHotkey ??= AppSettings.CreateDefaultStartStopHotkey();
+        if (settings.StartStopHotkey.Gesture.Equals(AppSettings.PreviousDefaultStartStopHotkeyGesture, StringComparison.OrdinalIgnoreCase))
         {
-            settings.CancelHotkey = HotkeySettings.FromGesture("Ctrl+Shift+Space");
+            settings.StartStopHotkey = AppSettings.CreateDefaultStartStopHotkey();
+        }
+
+        settings.CancelHotkey ??= AppSettings.CreateDefaultCancelHotkey();
+        if (settings.CancelHotkey.Gesture.Equals(AppSettings.PreviousDefaultCancelHotkeyGesture, StringComparison.OrdinalIgnoreCase))
+        {
+            settings.CancelHotkey = AppSettings.CreateDefaultCancelHotkey();
         }
 
         settings.SelectedTranscriptionProviderId = string.IsNullOrWhiteSpace(settings.SelectedTranscriptionProviderId)
-            ? WhisperNativeBatchTranscriptionProvider.ProviderId
+            ? AppSettings.DefaultTranscriptionProviderId
             : settings.SelectedTranscriptionProviderId;
         if (settings.SelectedTranscriptionProviderId.Equals(WhisperCppBatchTranscriptionProvider.ProviderId, StringComparison.OrdinalIgnoreCase))
         {
-            settings.SelectedTranscriptionProviderId = WhisperNativeBatchTranscriptionProvider.ProviderId;
+            settings.SelectedTranscriptionProviderId = AppSettings.DefaultTranscriptionProviderId;
         }
 
         settings.SelectedAudioProcessorProviderId = string.IsNullOrWhiteSpace(settings.SelectedAudioProcessorProviderId)
-            ? NoOpAudioProcessingProvider.ProviderId
+            ? AppSettings.DefaultAudioProcessorProviderId
             : settings.SelectedAudioProcessorProviderId;
         settings.TranscriptionProviderSettings = NormalizeTranscriptionProviderSettings(settings.TranscriptionProviderSettings);
         settings.AudioProcessingProviderSettings = NormalizeProviderSettings(
             settings.AudioProcessingProviderSettings,
-            NoOpAudioProcessingProvider.ProviderId);
+            AppSettings.DefaultAudioProcessorProviderId);
         settings.Cleanup ??= new CleanupSettings();
-        settings.EnabledOutputProviderIds ??= new List<string> { BuiltInOutputProviderIds.Paste };
+        settings.EnabledOutputProviderIds ??= AppSettings.CreateDefaultEnabledOutputProviderIds();
         if (settings.EnabledOutputProviderIds.Count == 0)
         {
-            settings.EnabledOutputProviderIds.Add(BuiltInOutputProviderIds.Paste);
-        }
-        else if (settings.EnabledOutputProviderIds.Count == 1 && settings.EnabledOutputProviderIds[0].Equals(BuiltInOutputProviderIds.Clipboard, StringComparison.OrdinalIgnoreCase))
-        {
-            settings.EnabledOutputProviderIds[0] = BuiltInOutputProviderIds.Paste;
+            settings.EnabledOutputProviderIds.Add(AppSettings.DefaultOutputProviderId);
         }
 
         settings.OutputProviderSettings = NormalizeProviderSettings(

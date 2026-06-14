@@ -10,7 +10,7 @@ public sealed class WhisperCppBatchTranscriptionProvider : IBatchTranscriptionPr
 
     public TranscriptionProviderMetadata Metadata { get; } = new(
         ProviderId,
-        "whisper.cpp local",
+        "whisper-cli",
         TranscriptionMode.Batch,
         RequiresEndpoint: false,
         "Runs whisper-cli.exe for each completed recording.");

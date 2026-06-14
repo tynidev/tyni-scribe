@@ -4,9 +4,9 @@ namespace Tts.Core.Services.Transcription;
 
 public static class WhisperNativeProviderSettings
 {
-    private const string DefaultModelId = WhisperCppModelCatalog.LargeV3TurboModelId;
-    private const string DefaultLanguage = "en";
-    private const int DefaultTimeoutSeconds = 600;
+    public const string DefaultModelId = WhisperCppModelCatalog.LargeV3TurboModelId;
+    public const string DefaultLanguage = "en";
+    public const int DefaultTimeoutSeconds = 600;
 
     public static IReadOnlyList<ProviderSettingDescriptor> Descriptors { get; } = new[]
     {

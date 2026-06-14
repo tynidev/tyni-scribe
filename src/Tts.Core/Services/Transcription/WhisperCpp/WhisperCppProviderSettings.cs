@@ -4,8 +4,9 @@ namespace Tts.Core.Services.Transcription;
 
 public static class WhisperCppProviderSettings
 {
-    private const string DefaultLanguage = "en";
-    private const int DefaultTimeoutSeconds = 600;
+    public const string DefaultModelId = WhisperCppModelCatalog.TinyEnglishModelId;
+    public const string DefaultLanguage = "en";
+    public const int DefaultTimeoutSeconds = 600;
 
     public static IReadOnlyList<ProviderSettingDescriptor> Descriptors { get; } = new[]
     {
@@ -79,7 +80,7 @@ public static class WhisperCppProviderSettings
     {
         return WhisperCppModelCatalog.Models.Any(model => model.Id.Equals(modelId, StringComparison.OrdinalIgnoreCase))
             ? modelId!
-            : WhisperCppModelCatalog.TinyEnglishModelId;
+            : DefaultModelId;
     }
 
     private static string NormalizeLanguage(string? language)

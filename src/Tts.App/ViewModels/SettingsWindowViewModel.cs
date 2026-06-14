@@ -645,14 +645,9 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
             return providerId;
         }
 
-        if (TranscriptionProviders.Any(provider => provider.Id.Equals(WhisperNativeBatchTranscriptionProvider.ProviderId, StringComparison.OrdinalIgnoreCase)))
+        if (TranscriptionProviders.Any(provider => provider.Id.Equals(AppSettings.DefaultTranscriptionProviderId, StringComparison.OrdinalIgnoreCase)))
         {
-            return WhisperNativeBatchTranscriptionProvider.ProviderId;
-        }
-
-        if (TranscriptionProviders.Any(provider => provider.Id.Equals(WhisperCppBatchTranscriptionProvider.ProviderId, StringComparison.OrdinalIgnoreCase)))
-        {
-            return WhisperCppBatchTranscriptionProvider.ProviderId;
+            return AppSettings.DefaultTranscriptionProviderId;
         }
 
         return TranscriptionProviders.FirstOrDefault()?.Id ?? providerId.Trim();
@@ -665,9 +660,9 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
             return providerId;
         }
 
-        if (AudioProcessingProviders.Any(provider => provider.Id.Equals(NoOpAudioProcessingProvider.ProviderId, StringComparison.OrdinalIgnoreCase)))
+        if (AudioProcessingProviders.Any(provider => provider.Id.Equals(AppSettings.DefaultAudioProcessorProviderId, StringComparison.OrdinalIgnoreCase)))
         {
-            return NoOpAudioProcessingProvider.ProviderId;
+            return AppSettings.DefaultAudioProcessorProviderId;
         }
 
         return AudioProcessingProviders.FirstOrDefault()?.Id ?? providerId.Trim();
@@ -680,14 +675,9 @@ public sealed partial class SettingsWindowViewModel : ObservableObject
             return providerId;
         }
 
-        if (OutputProviders.Any(provider => provider.Id.Equals(PasteOutputProvider.ProviderId, StringComparison.OrdinalIgnoreCase)))
+        if (OutputProviders.Any(provider => provider.Id.Equals(AppSettings.DefaultOutputProviderId, StringComparison.OrdinalIgnoreCase)))
         {
-            return PasteOutputProvider.ProviderId;
-        }
-
-        if (OutputProviders.Any(provider => provider.Id.Equals(ClipboardOutputProvider.ProviderId, StringComparison.OrdinalIgnoreCase)))
-        {
-            return ClipboardOutputProvider.ProviderId;
+            return AppSettings.DefaultOutputProviderId;
         }
 
         return OutputProviders.FirstOrDefault()?.Id ?? providerId.Trim();

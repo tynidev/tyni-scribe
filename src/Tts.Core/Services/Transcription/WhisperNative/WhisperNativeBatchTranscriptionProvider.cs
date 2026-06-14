@@ -16,7 +16,7 @@ public sealed class WhisperNativeBatchTranscriptionProvider : IBatchTranscriptio
 
     public TranscriptionProviderMetadata Metadata { get; } = new(
         ProviderId,
-        "whisper.cpp native local",
+        "whisper-model",
         TranscriptionMode.Batch,
         RequiresEndpoint: false,
         "Runs the in-process native whisper.cpp interop engine.");

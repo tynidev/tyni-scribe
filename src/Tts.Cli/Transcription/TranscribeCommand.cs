@@ -65,7 +65,7 @@ internal static class TranscribeCommand
                 ? settings.SelectedTranscriptionProviderId
                 : options.ProviderId.Trim();
             audioProcessorProviderId = string.IsNullOrWhiteSpace(settings.SelectedAudioProcessorProviderId)
-                ? NoOpAudioProcessingProvider.ProviderId
+                ? AppSettings.DefaultAudioProcessorProviderId
                 : settings.SelectedAudioProcessorProviderId;
 
             effectiveSettings = BuildEffectiveSettings(settings, providerId, options.SettingOverrides);

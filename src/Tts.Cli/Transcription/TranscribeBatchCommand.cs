@@ -55,7 +55,7 @@ internal static class TranscribeBatchCommand
                 ? settings.SelectedTranscriptionProviderId
                 : options.ProviderId.Trim();
             var audioProcessorProviderId = string.IsNullOrWhiteSpace(settings.SelectedAudioProcessorProviderId)
-                ? NoOpAudioProcessingProvider.ProviderId
+                ? AppSettings.DefaultAudioProcessorProviderId
                 : settings.SelectedAudioProcessorProviderId;
             var effectiveSettings = BuildEffectiveSettings(settings, providerId, options.SettingOverrides);
             var runLabel = BuildRunLabel(providerId, effectiveSettings);
