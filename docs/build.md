@@ -165,12 +165,14 @@ build/native/Tts.WhisperInterop/tts-whisper-interop.dll
 
 ## Solution Projects
 
-The managed solution has three projects:
+The managed solution has five projects:
 
 ```text
-src/Tts.Core   Shared configuration, paths, audio/transcription providers, timing primitives, and native engine wrappers.
-src/Tts.App    WPF tray app, settings UI, hotkeys, session orchestration, clipboard/paste output.
-src/Tts.Cli    Focused single-file transcription CLI for scripts and benchmarks.
+src/Tts.Core           Shared configuration, paths, audio/transcription providers, timing primitives, native engine wrappers, and generic media preparation.
+src/Tts.App            WPF tray app, settings UI, hotkeys, session orchestration, clipboard/paste output.
+src/Tts.Cli            Focused transcription CLI for local audio files and benchmarks.
+src/YtScribe.Core      YouTube metadata/caption/audio ingestion and transcript artifact writing.
+src/YtScribe.Cli       `yt-scribe` transcript-export command-line app.
 ```
 
 Native/runtime assets such as `tts-whisper-interop.dll` and CUDA runtime DLLs are copied by `src/Tts.Core/Tts.Core.csproj` into consuming outputs when present.
@@ -227,6 +229,59 @@ src\Tts.Cli\bin\Release\net8.0-windows\Tts.Cli.exe transcribe `
 The CLI currently supports 16 kHz mono PCM 16-bit WAV input. LibriSpeech benchmark prep converts source FLAC files to this format. Use `--config <path>` to read an app-compatible settings JSON file, or omit it to use `%AppData%/SpeechToTextDaemon/config.json`. Common overrides are `--provider`, `--model`, `--language`, `--timeout-seconds`, and repeated `--setting key=value`.
 
 `--metrics-output` writes machine-readable timing/status JSON for scripts. Transcript text remains on stdout; sanitized errors go to stderr. The metrics include `transcriptionRealTimeFactor` and `transcriptionAudioSecondsPerSecond`; lower real-time factor is better, while higher audio-seconds-per-second is faster. For example, `0.25` RTF is equivalent to `4x` realtime transcription speed.
+
+`Tts.Cli` is intentionally transcription-only. YouTube ingestion lives in `yt-scribe`.
+
+## yt-scribe YouTube Transcript Export
+
+`yt-scribe` exports YouTube video metadata and transcript artifacts to a directory. It prefers downloadable captions/subtitles and falls back to downloading audio with `yt-dlp`, converting it with `ffmpeg`, and transcribing through the same local providers used by `Tts.Core`.
+
+Prerequisites:
+
+```powershell
+yt-dlp --version
+ffmpeg -version
+```
+
+Build through the solution or directly:
+
+```powershell
+dotnet build src/YtScribe.Cli/YtScribe.Cli.csproj -c Release
+```
+
+Export a single video:
+
+```powershell
+src\YtScribe.Cli\bin\Release\net8.0-windows\yt-scribe.exe export `
+    --url "https://www.youtube.com/watch?v=<video-id>" `
+    --output-dir "$env:TEMP\yt-scribe" `
+    --caption-language "en.*" `
+    --metrics-output "$env:TEMP\yt-scribe-metrics.json"
+```
+
+Force local audio transcription instead of captions:
+
+```powershell
+src\YtScribe.Cli\bin\Release\net8.0-windows\yt-scribe.exe export `
+    --url "https://www.youtube.com/watch?v=<video-id>" `
+    --output-dir "$env:TEMP\yt-scribe" `
+    --force-audio `
+    --provider whisper-cpp-native-local `
+    --model tiny-en `
+    --language en `
+    --overwrite
+```
+
+For each video, `yt-scribe` writes one subdirectory named after the YouTube video ID. The current artifact contract is:
+
+```text
+metadata.json      Video metadata, transcript origin, provider/settings summary when transcribed, and sanitized timings.
+transcript.json    Normalized full transcript. Caption exports include timestamped segments; audio fallback is untimed until providers expose segments.
+transcript.vtt     Original caption VTT when captions were available.
+transcript.txt     Plain text convenience output unless `--no-transcript-text` is used.
+```
+
+Transcript content is written only to explicit transcript artifacts. Metrics and errors are sanitized and should not contain raw transcript text, raw captions, raw stderr, secrets, or endpoint URLs.
 
 ## LibriSpeech Benchmark Scripts
 

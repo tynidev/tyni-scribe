@@ -40,6 +40,7 @@ Complete these checks before starting application implementation.
 | Native whisper.cpp provider | Warm local batch transcription provider | `In Progress` | No | Built `tts-whisper-interop.dll` from pinned `ggml-org/whisper.cpp` submodule source for `whisper-cpp-native-local`; full microphone-session validation and packaging polish remain. |
 | CUDA Toolkit 12.9 | GPU-backed native whisper.cpp provider | `Complete` | Yes | Installed `Nvidia.CUDA` 12.9 with winget; verified `nvcc` 12.9.86 and rebuilt `tts-whisper-interop.dll` with `GGML_CUDA=ON`. |
 | CLI transcription and benchmark harness | Provider timing comparisons | `In Progress` | No | Split shared provider logic into `Tts.Core`, added focused single-file `Tts.Cli transcribe`, and added PowerShell LibriSpeech prep/benchmark scripts. Full 1000-file dataset benchmark runs remain to be executed. |
+| yt-scribe YouTube transcript exporter | YouTube metadata/transcript artifacts | `In Progress` | No | Added separate `YtScribe.Core` and `YtScribe.Cli` projects so YouTube ingestion stays out of `Tts.Cli`; first slice exports metadata JSON plus transcript JSON/VTT/TXT, preferring captions and falling back to local audio transcription through `Tts.Core`. |
 | Remote streaming provider credentials or mock provider decision | First streaming transcription provider | `Complete` | Yes | Use a local mock streaming provider for v1 so no remote credentials are required yet. |
 | Serilog file sink package | Sanitized rolling file logs | `Complete` | Yes | Restored `Serilog` and `Serilog.Sinks.File` in the temporary WPF project. |
 | Packaging tool decision | Single-file publish | `Complete` | Yes | Use a self-contained single-file Windows publish instead of an installer/MSIX for the first distribution path. |
@@ -72,6 +73,7 @@ Complete? Yes
 - Created a C#/.NET 8 WPF Windows utility under `src/Tts.App` with a solution file at the repository root.
 - Split shared non-UI configuration, paths, audio/provider abstractions, provider implementations, timing primitives, and native engine wrappers into `src/Tts.Core` so the WPF app and CLI can consume the same provider layer.
 - Added `src/Tts.Cli` as a focused single-file transcription CLI that writes transcript text to stdout and can write a metrics JSON sidecar for benchmark scripts.
+- Added separate `src/YtScribe.Core` and `src/YtScribe.Cli` projects for YouTube transcript export. `Tts.Cli` remains transcription-only; `yt-scribe` owns YouTube metadata/caption/audio ingestion and writes explicit transcript artifacts to an output directory.
 - Added hosted startup services and dependency injection through `Microsoft.Extensions.Hosting`.
 - Added tray lifecycle behavior: open settings, minimize or close settings to tray, and quit from the tray menu.
 - Added typed JSON configuration stored under `%AppData%/SpeechToTextDaemon/config.json`.
