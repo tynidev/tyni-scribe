@@ -21,52 +21,58 @@ public sealed class TranscriptionExecutionService : ITranscriptionExecutionServi
 
     public async Task<TranscriptionExecutionResult> TranscribeAsync(TranscriptionExecutionRequest request, CancellationToken cancellationToken = default)
     {
+        // Validate the request and normalize the input audio path before doing any provider work.
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Settings);
-
         var audioPath = Path.GetFullPath(request.AudioFilePath);
         if (!File.Exists(audioPath))
         {
             throw new FileNotFoundException("The audio file was not found.");
         }
 
+        // ReadSupportedWavInfo verifies that the input is a WAV format this pipeline can process and returns its format metadata.
+        // Must be a valid WAV file with the following characteristics:
+        // - SampleRate = 16 kHz
+        // - Channels = 1
+        // - BitsPerSample = 16
         var audioInfo = ReadSupportedWavInfo(audioPath);
-        var providerId = string.IsNullOrWhiteSpace(request.ProviderId)
-            ? request.Settings.SelectedTranscriptionProviderId
-            : request.ProviderId.Trim();
-        var audioProcessorProviderId = string.IsNullOrWhiteSpace(request.AudioProcessorProviderId)
-            ? request.Settings.SelectedAudioProcessorProviderId
-            : request.AudioProcessorProviderId.Trim();
 
-        if (string.IsNullOrWhiteSpace(audioProcessorProviderId))
-        {
-            audioProcessorProviderId = AppSettings.DefaultAudioProcessorProviderId;
-        }
+        // ResolveProviders in this order:
+        // - from the request
+        // - saved settings
+        // - defaults
+        var providers = ResolveProviders(request);
 
-        var effectiveSettings = BuildEffectiveSettings(request.Settings, providerId, request.SettingOverrides ?? new Dictionary<string, string>());
-        var audioProcessor = ResolveAudioProcessor(audioProcessorProviderId);
-        var transcriptionProvider = ResolveTranscriptionProvider(providerId);
-        var audioProcessorSettings = GetProviderSettings(request.Settings.AudioProcessingProviderSettings, audioProcessorProviderId);
+        // Resolve Transcription Settings:
+        // - Loads Saved settings
+        // - Applies setting overrides from the request
+        var transcriptionSettings = ResolveTranscriptionSettings(request.Settings, providers.TranscriptionProviderId, request.SettingOverrides ?? new Dictionary<string, string>());
 
+        // GetProviderSettings from the saved settings.
+        var audioProcessorSettings = GetProviderSettings(request.Settings.AudioProcessingProviderSettings, providers.AudioProcessorProviderId);
+
+        // Process the source WAV through the selected audio processor.
         var audioProcessingStopwatch = Stopwatch.StartNew();
-        var processedAudio = await audioProcessor.ProcessAsync(
+        var processedAudio = await providers.AudioProcessor.ProcessAsync(
             new AudioProcessingRequest(audioPath, audioInfo.Format, audioInfo.Duration, audioProcessorSettings),
             cancellationToken);
         audioProcessingStopwatch.Stop();
 
         try
         {
+            // Run transcription against the processed audio while measuring provider latency.
             var transcriptionStopwatch = Stopwatch.StartNew();
-            var result = await transcriptionProvider.TranscribeAsync(
-                new BatchTranscriptionRequest(processedAudio.FilePath, audioInfo.Format, audioInfo.Duration, effectiveSettings),
+            var result = await providers.TranscriptionProvider.TranscribeAsync(
+                new BatchTranscriptionRequest(processedAudio.FilePath, audioInfo.Format, audioInfo.Duration, transcriptionSettings),
                 cancellationToken);
             transcriptionStopwatch.Stop();
 
+            // Return final text plus the provider IDs, effective settings, source audio metadata, and timing metrics.
             return new TranscriptionExecutionResult(
                 result.Text,
-                providerId,
-                audioProcessorProviderId,
-                effectiveSettings,
+                providers.TranscriptionProviderId,
+                providers.AudioProcessorProviderId,
+                transcriptionSettings,
                 audioPath,
                 audioInfo.Duration.TotalSeconds,
                 ToMilliseconds(audioProcessingStopwatch.Elapsed),
@@ -76,11 +82,38 @@ public sealed class TranscriptionExecutionService : ITranscriptionExecutionServi
         }
         finally
         {
+            // Remove temporary processed audio files, but never delete the original user-provided input file.
             if (!processedAudio.IsOriginalFile)
             {
                 DeleteIfExists(processedAudio.FilePath);
             }
         }
+    }
+
+    private ResolvedProviders ResolveProviders(TranscriptionExecutionRequest request)
+    {
+        var transcriptionProviderId = string.IsNullOrWhiteSpace(request.ProviderId)
+            ? request.Settings.SelectedTranscriptionProviderId
+            : request.ProviderId.Trim();
+        var audioProcessorProviderId = string.IsNullOrWhiteSpace(request.AudioProcessorProviderId)
+            ? request.Settings.SelectedAudioProcessorProviderId
+            : request.AudioProcessorProviderId.Trim();
+
+        // If no provider ID is specified, use the default provider IDs.
+        if (string.IsNullOrWhiteSpace(transcriptionProviderId))
+        {
+            transcriptionProviderId = AppSettings.DefaultTranscriptionProviderId;
+        }
+        if (string.IsNullOrWhiteSpace(audioProcessorProviderId))
+        {
+            audioProcessorProviderId = AppSettings.DefaultAudioProcessorProviderId;
+        }
+
+        return new ResolvedProviders(
+            transcriptionProviderId,
+            audioProcessorProviderId,
+            ResolveAudioProcessor(audioProcessorProviderId),
+            ResolveTranscriptionProvider(transcriptionProviderId));
     }
 
     private IAudioProcessingProvider ResolveAudioProcessor(string audioProcessorProviderId)
@@ -95,7 +128,7 @@ public sealed class TranscriptionExecutionService : ITranscriptionExecutionServi
         return provider ?? throw new InvalidOperationException($"Transcription provider '{providerId}' is not available.");
     }
 
-    private static Dictionary<string, string> BuildEffectiveSettings(
+    private static Dictionary<string, string> ResolveTranscriptionSettings(
         AppSettings settings,
         string providerId,
         IReadOnlyDictionary<string, string> overrides)
@@ -195,4 +228,10 @@ public sealed class TranscriptionExecutionService : ITranscriptionExecutionServi
     }
 
     private sealed record WavInfo(AudioCaptureFormat Format, TimeSpan Duration);
+
+    private sealed record ResolvedProviders(
+        string TranscriptionProviderId,
+        string AudioProcessorProviderId,
+        IAudioProcessingProvider AudioProcessor,
+        IBatchTranscriptionProvider TranscriptionProvider);
 }
