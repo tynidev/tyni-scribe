@@ -14,7 +14,7 @@ internal static class CommandLineHelp
         writer.WriteLine("  --force-audio              Download audio and transcribe instead of using captions.");
         writer.WriteLine("  --provider <id>            Fallback transcription provider id. Defaults to app config.");
         writer.WriteLine("  --config <path>            Read app-compatible settings JSON from this path.");
-        writer.WriteLine("  --model <id>               Override provider modelId setting.");
+        writer.WriteLine("  --model <id>               Override provider modelId setting. Defaults to tiny-en.");
         writer.WriteLine("  --language <code>          Override provider language setting.");
         writer.WriteLine("  --timeout-seconds <value>  Override provider timeoutSeconds setting.");
         writer.WriteLine("  --setting <key=value>      Override any provider setting. Can repeat.");

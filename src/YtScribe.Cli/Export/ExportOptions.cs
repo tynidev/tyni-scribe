@@ -1,4 +1,5 @@
 using Tts.Core.Services;
+using Tts.Core.Services.Transcription;
 
 namespace YtScribe.Cli.Export;
 
@@ -187,6 +188,11 @@ internal sealed class ExportOptions
             errorWriter.WriteLine("Missing required --output-dir option.");
             options = new ExportOptions();
             return false;
+        }
+
+        if (!overrides.ContainsKey(ProviderSettingKeys.ModelId))
+        {
+            overrides[ProviderSettingKeys.ModelId] = WhisperCppModelCatalog.TinyEnglishModelId;
         }
 
         options = new ExportOptions
