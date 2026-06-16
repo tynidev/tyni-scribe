@@ -144,7 +144,7 @@ public sealed partial class YouTubeExportService : IYouTubeExportService
         }
         finally
         {
-            if (!preparedAudio.IsOriginalFile)
+            if (!request.KeepTemp && !preparedAudio.IsOriginalFile)
             {
                 DeleteFileIfExists(preparedAudio.AudioFilePath);
             }
