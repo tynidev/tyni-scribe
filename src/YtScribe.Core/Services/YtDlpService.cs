@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.ComponentModel;
 using System.Text.Json;
 using YtScribe.Core.Model;
 
@@ -116,11 +117,28 @@ public sealed class YtDlpService : IYtDlpService
 
     private static async Task<YtDlpProcessResult> RunAsync(IReadOnlyList<string> arguments, string? workingDirectory, CancellationToken cancellationToken)
     {
+        try
+        {
+            return await RunProcessAsync("yt-dlp", arguments, workingDirectory, cancellationToken);
+        }
+        catch (InvalidOperationException exception) when (exception.InnerException is Win32Exception)
+        {
+            return await RunProcessAsync("python", ["-m", "yt_dlp", .. arguments], workingDirectory, cancellationToken);
+        }
+    }
+
+    private static async Task<YtDlpProcessResult> RunProcessAsync(IReadOnlyList<string> command, string? workingDirectory, CancellationToken cancellationToken)
+    {
+        return await RunProcessAsync(command[0], command.Skip(1).ToArray(), workingDirectory, cancellationToken);
+    }
+
+    private static async Task<YtDlpProcessResult> RunProcessAsync(string fileName, IReadOnlyList<string> arguments, string? workingDirectory, CancellationToken cancellationToken)
+    {
         using var process = new Process
         {
             StartInfo = new ProcessStartInfo
             {
-                FileName = "yt-dlp",
+                FileName = fileName,
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -138,12 +156,12 @@ public sealed class YtDlpService : IYtDlpService
         {
             if (!process.Start())
             {
-                throw new InvalidOperationException("Could not start yt-dlp.");
+                throw new InvalidOperationException($"Could not start {fileName}.");
             }
         }
         catch (Exception exception) when (exception is not InvalidOperationException)
         {
-            throw new InvalidOperationException("yt-dlp was not found or could not be started.", exception);
+            throw new InvalidOperationException($"{fileName} was not found or could not be started.", exception);
         }
 
         var standardOutputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
