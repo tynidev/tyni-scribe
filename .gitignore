@@ -42,6 +42,10 @@ logs/
 *.temp
 *.pid
 
+# Local secrets and environment overrides
+.env
+.env.local
+
 # OS generated files
 Thumbs.db
 Desktop.ini
