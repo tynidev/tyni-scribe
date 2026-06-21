@@ -6,7 +6,8 @@ internal static class ChannelInputParser
         IReadOnlyList<string> positionalChannels,
         string? channelsFile,
         out string[] channels,
-        out string? error)
+        out string? error,
+        bool allowEmpty = false)
     {
         channels = Array.Empty<string>();
         error = null;
@@ -55,7 +56,7 @@ internal static class ChannelInputParser
             }
         }
 
-        if (ordered.Count == 0)
+        if (ordered.Count == 0 && !allowEmpty)
         {
             error = "At least one channel must be provided via positional args or --channels-file.";
             return false;

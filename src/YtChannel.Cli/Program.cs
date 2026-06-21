@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using TranscriptSummary.Core;
 using Tts.Core;
 using YtChannel.Cli;
 using YtChannel.Cli.Commands;
@@ -45,6 +46,13 @@ switch (command.ToLowerInvariant())
             return await ProcessCommand.RunAsync(commandArgs, sp);
         }
 
+    case "summarize":
+        await using (var sp = BuildServiceProvider(requireDb: true))
+        {
+            await InitializeDbAsync(sp);
+            return await SummarizeCommand.RunAsync(commandArgs, sp);
+        }
+
     default:
         Console.Error.WriteLine($"Unknown command '{command}'.");
         CommandLineHelp.Write(Console.Error);
@@ -58,6 +66,7 @@ static ServiceProvider BuildServiceProvider(bool requireDb)
     // Core TTS and yt-scribe services (transcription, ffmpeg, yt-dlp)
     services.AddTtsCoreServices();
     services.AddYtScribeCoreServices();
+    services.AddTranscriptSummaryCoreServices();
 
     // YouTube API settings
     var apiSettings = new YouTubeApiSettings();

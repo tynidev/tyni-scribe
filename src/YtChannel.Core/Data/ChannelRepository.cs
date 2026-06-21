@@ -108,6 +108,16 @@ public sealed class ChannelRepository
         return Convert.ToInt32(await cmd.ExecuteScalarAsync(cancellationToken));
     }
 
+    public async Task<int> CountVideosBySummaryStatusAsync(string channelId, string status, CancellationToken cancellationToken = default)
+    {
+        var conn = await _context.GetConnectionAsync(cancellationToken);
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM Videos WHERE ChannelId = $channelId AND SummaryStatus = $status";
+        cmd.Parameters.AddWithValue("$channelId", channelId);
+        cmd.Parameters.AddWithValue("$status", status);
+        return Convert.ToInt32(await cmd.ExecuteScalarAsync(cancellationToken));
+    }
+
     public async Task<int> CountAllVideosAsync(string channelId, CancellationToken cancellationToken = default)
     {
         var conn = await _context.GetConnectionAsync(cancellationToken);
@@ -166,11 +176,25 @@ public sealed class ChannelRepository
                 v.IsShortsPlaylistVideo,
                 v.PublishedAt,
                 v.TranscriptStatus,
+                v.SummaryStatus,
                 t.TranscriptOrigin,
                 t.TranscriptFilePath,
-                t.SucceededAt
+                t.SucceededAt,
+                s.SummaryFilePath,
+                s.SummarizedAt
             FROM Videos v
             LEFT JOIN LatestSuccessfulTranscription t ON t.VideoId = v.VideoId
+            LEFT JOIN (
+                SELECT sm.*
+                FROM Summaries sm
+                INNER JOIN (
+                    SELECT VideoId, MAX(Id) AS Id
+                    FROM Summaries
+                    WHERE ErrorCategory IS NULL
+                      AND SummaryFilePath IS NOT NULL
+                    GROUP BY VideoId
+                ) latestSummary ON latestSummary.Id = sm.Id
+            ) s ON s.VideoId = v.VideoId
             WHERE v.ChannelId = $channelId
             ORDER BY v.PublishedAt DESC, v.VideoId ASC;
             """;
@@ -194,10 +218,78 @@ public sealed class ChannelRepository
                 IsShort = duration.HasValue && duration.Value <= 180 && isShortsPlaylistVideo,
                 PublishedAt = reader.IsDBNull(reader.GetOrdinal("PublishedAt")) ? null : reader.GetString(reader.GetOrdinal("PublishedAt")),
                 TranscriptStatus = reader.GetString(reader.GetOrdinal("TranscriptStatus")),
+                SummaryStatus = reader.GetString(reader.GetOrdinal("SummaryStatus")),
                 TranscriptOrigin = reader.IsDBNull(reader.GetOrdinal("TranscriptOrigin")) ? null : reader.GetString(reader.GetOrdinal("TranscriptOrigin")),
                 TranscriptFilePath = reader.IsDBNull(reader.GetOrdinal("TranscriptFilePath")) ? null : reader.GetString(reader.GetOrdinal("TranscriptFilePath")),
                 TranscribedAt = reader.IsDBNull(reader.GetOrdinal("SucceededAt")) ? null : DateTimeOffset.Parse(reader.GetString(reader.GetOrdinal("SucceededAt"))),
+                SummaryFilePath = reader.IsDBNull(reader.GetOrdinal("SummaryFilePath")) ? null : reader.GetString(reader.GetOrdinal("SummaryFilePath")),
+                SummarizedAt = reader.IsDBNull(reader.GetOrdinal("SummarizedAt")) ? null : DateTimeOffset.Parse(reader.GetString(reader.GetOrdinal("SummarizedAt"))),
             });
+        }
+
+        return results;
+    }
+
+    public async Task<IReadOnlyList<SummaryCandidateRecord>> GetSummarizationCandidatesAsync(
+        string? channelId,
+        int? limit,
+        bool includeShorts,
+        bool includeAlreadySummarized,
+        CancellationToken cancellationToken = default)
+    {
+        var conn = await _context.GetConnectionAsync(cancellationToken);
+        using var cmd = conn.CreateCommand();
+        var channelPredicate = string.IsNullOrWhiteSpace(channelId) ? string.Empty : " AND v.ChannelId = $channelId";
+        var summaryPredicate = includeAlreadySummarized ? string.Empty : " AND v.SummaryStatus <> 'summarized'";
+        var shortsPredicate = includeShorts
+            ? string.Empty
+            : " AND NOT (v.DurationSeconds IS NOT NULL AND v.DurationSeconds <= 180 AND v.IsShortsPlaylistVideo = 1)";
+        var limitClause = limit.HasValue ? " LIMIT $limit" : string.Empty;
+
+        cmd.CommandText = $"""
+            WITH LatestSuccessfulTranscription AS (
+                SELECT t.*
+                FROM Transcriptions t
+                INNER JOIN (
+                    SELECT VideoId, MAX(Id) AS Id
+                    FROM Transcriptions
+                    WHERE ErrorCategory IS NULL
+                      AND TranscriptFilePath IS NOT NULL
+                    GROUP BY VideoId
+                ) latest ON latest.Id = t.Id
+            )
+            SELECT
+                v.VideoId,
+                v.ChannelId,
+                v.Title,
+                v.DurationSeconds,
+                v.IsShortsPlaylistVideo,
+                v.SummaryStatus,
+                t.TranscriptFilePath
+            FROM Videos v
+            INNER JOIN LatestSuccessfulTranscription t ON t.VideoId = v.VideoId
+            WHERE v.TranscriptStatus = 'completed'
+              {channelPredicate}
+              {summaryPredicate}
+              {shortsPredicate}
+            ORDER BY v.PublishedAt DESC, v.VideoId ASC
+            {limitClause};
+            """;
+        if (!string.IsNullOrWhiteSpace(channelId))
+        {
+            cmd.Parameters.AddWithValue("$channelId", channelId);
+        }
+
+        if (limit.HasValue)
+        {
+            cmd.Parameters.AddWithValue("$limit", limit.Value);
+        }
+
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        var results = new List<SummaryCandidateRecord>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(ReadSummaryCandidate(reader));
         }
 
         return results;
@@ -208,6 +300,17 @@ public sealed class ChannelRepository
         var conn = await _context.GetConnectionAsync(cancellationToken);
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "UPDATE Videos SET TranscriptStatus = $status, UpdatedAt = $updatedAt WHERE VideoId = $videoId";
+        cmd.Parameters.AddWithValue("$status", status);
+        cmd.Parameters.AddWithValue("$updatedAt", DateTimeOffset.UtcNow.ToString("O"));
+        cmd.Parameters.AddWithValue("$videoId", videoId);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task UpdateVideoSummaryStatusAsync(string videoId, string status, CancellationToken cancellationToken = default)
+    {
+        var conn = await _context.GetConnectionAsync(cancellationToken);
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE Videos SET SummaryStatus = $status, UpdatedAt = $updatedAt WHERE VideoId = $videoId";
         cmd.Parameters.AddWithValue("$status", status);
         cmd.Parameters.AddWithValue("$updatedAt", DateTimeOffset.UtcNow.ToString("O"));
         cmd.Parameters.AddWithValue("$videoId", videoId);
@@ -238,6 +341,38 @@ public sealed class ChannelRepository
         cmd.Parameters.AddWithValue("$succeededAt", (object?)record.SucceededAt?.ToString("O") ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$errorCat", (object?)record.ErrorCategory ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$errorMsg", (object?)record.ErrorMessage ?? DBNull.Value);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task InsertSummaryAsync(SummaryRecord record, CancellationToken cancellationToken = default)
+    {
+        var conn = await _context.GetConnectionAsync(cancellationToken);
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO Summaries
+                (VideoId, SummaryFilePath, ModelId, EndpointHost, ContextTokens, MaxOutputTokens,
+                 EstimatedTranscriptTokens, ChunkCount, MergePassCount, LlmRequestCount,
+                 TotalDurationMs, TotalLlmDurationMs, SummarizedAt, ErrorCategory, ErrorMessage)
+            VALUES
+                ($videoId, $summaryFilePath, $modelId, $endpointHost, $contextTokens, $maxOutputTokens,
+                 $estimatedTranscriptTokens, $chunkCount, $mergePassCount, $llmRequestCount,
+                 $totalDurationMs, $totalLlmDurationMs, $summarizedAt, $errorCategory, $errorMessage);
+            """;
+        cmd.Parameters.AddWithValue("$videoId", record.VideoId);
+        cmd.Parameters.AddWithValue("$summaryFilePath", (object?)record.SummaryFilePath ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$modelId", (object?)record.ModelId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$endpointHost", (object?)record.EndpointHost ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$contextTokens", (object?)record.ContextTokens ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$maxOutputTokens", (object?)record.MaxOutputTokens ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$estimatedTranscriptTokens", (object?)record.EstimatedTranscriptTokens ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$chunkCount", (object?)record.ChunkCount ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$mergePassCount", (object?)record.MergePassCount ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$llmRequestCount", (object?)record.LlmRequestCount ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$totalDurationMs", (object?)record.TotalDurationMs ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$totalLlmDurationMs", (object?)record.TotalLlmDurationMs ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$summarizedAt", (object?)record.SummarizedAt?.ToString("O") ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$errorCategory", (object?)record.ErrorCategory ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$errorMessage", (object?)record.ErrorMessage ?? DBNull.Value);
         await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -298,8 +433,20 @@ public sealed class ChannelRepository
         IsShortsPlaylistVideo = r.IsDBNull(r.GetOrdinal("IsShortsPlaylistVideo")) ? null : r.GetInt32(r.GetOrdinal("IsShortsPlaylistVideo")) != 0,
         PublishedAt      = r.IsDBNull(r.GetOrdinal("PublishedAt"))     ? null : r.GetString(r.GetOrdinal("PublishedAt")),
         TranscriptStatus = r.GetString(r.GetOrdinal("TranscriptStatus")),
+        SummaryStatus    = r.GetString(r.GetOrdinal("SummaryStatus")),
         CreatedAt        = DateTimeOffset.Parse(r.GetString(r.GetOrdinal("CreatedAt"))),
         UpdatedAt        = DateTimeOffset.Parse(r.GetString(r.GetOrdinal("UpdatedAt"))),
+    };
+
+    private static SummaryCandidateRecord ReadSummaryCandidate(SqliteDataReader r) => new()
+    {
+        VideoId = r.GetString(r.GetOrdinal("VideoId")),
+        ChannelId = r.GetString(r.GetOrdinal("ChannelId")),
+        Title = r.IsDBNull(r.GetOrdinal("Title")) ? null : r.GetString(r.GetOrdinal("Title")),
+        DurationSeconds = r.IsDBNull(r.GetOrdinal("DurationSeconds")) ? null : r.GetDouble(r.GetOrdinal("DurationSeconds")),
+        IsShortsPlaylistVideo = r.IsDBNull(r.GetOrdinal("IsShortsPlaylistVideo")) ? null : r.GetInt32(r.GetOrdinal("IsShortsPlaylistVideo")) != 0,
+        SummaryStatus = r.GetString(r.GetOrdinal("SummaryStatus")),
+        TranscriptFilePath = r.GetString(r.GetOrdinal("TranscriptFilePath")),
     };
 
     private static RateLimitMetricRecord ReadRateLimitMetric(SqliteDataReader r) => new()

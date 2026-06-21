@@ -37,6 +37,7 @@ public static class ChannelDbInitializer
                 IsShortsPlaylistVideo INTEGER,
                 PublishedAt      TEXT,
                 TranscriptStatus TEXT NOT NULL DEFAULT 'pending',
+                SummaryStatus    TEXT NOT NULL DEFAULT 'pending',
                 CreatedAt        TEXT NOT NULL,
                 UpdatedAt        TEXT NOT NULL
             );
@@ -55,6 +56,25 @@ public static class ChannelDbInitializer
                 ErrorMessage          TEXT
             );
 
+            CREATE TABLE IF NOT EXISTS Summaries (
+                Id                        INTEGER PRIMARY KEY AUTOINCREMENT,
+                VideoId                   TEXT NOT NULL REFERENCES Videos(VideoId),
+                SummaryFilePath           TEXT,
+                ModelId                   TEXT,
+                EndpointHost              TEXT,
+                ContextTokens             INTEGER,
+                MaxOutputTokens           INTEGER,
+                EstimatedTranscriptTokens INTEGER,
+                ChunkCount                INTEGER,
+                MergePassCount            INTEGER,
+                LlmRequestCount           INTEGER,
+                TotalDurationMs           INTEGER,
+                TotalLlmDurationMs        INTEGER,
+                SummarizedAt              TEXT,
+                ErrorCategory             TEXT,
+                ErrorMessage              TEXT
+            );
+
             CREATE TABLE IF NOT EXISTS RateLimitMetrics (
                 Id                       INTEGER PRIMARY KEY AUTOINCREMENT,
                 Timestamp                TEXT NOT NULL,
@@ -71,6 +91,13 @@ public static class ChannelDbInitializer
             tableName: "Videos",
             columnName: "IsShortsPlaylistVideo",
             columnDefinition: "INTEGER",
+            cancellationToken);
+
+        await AddMissingColumnAsync(
+            connection,
+            tableName: "Videos",
+            columnName: "SummaryStatus",
+            columnDefinition: "TEXT NOT NULL DEFAULT 'pending'",
             cancellationToken);
     }
 
@@ -106,11 +133,20 @@ public static class ChannelDbInitializer
             CREATE INDEX IF NOT EXISTS IX_Videos_ChannelId_Status
                 ON Videos(ChannelId, TranscriptStatus);
 
+            CREATE INDEX IF NOT EXISTS IX_Videos_ChannelId_SummaryStatus
+                ON Videos(ChannelId, SummaryStatus);
+
+            CREATE INDEX IF NOT EXISTS IX_Videos_SummaryStatus
+                ON Videos(SummaryStatus);
+
             CREATE INDEX IF NOT EXISTS IX_Videos_CreatedAt
                 ON Videos(CreatedAt);
 
             CREATE INDEX IF NOT EXISTS IX_Transcriptions_VideoId
                 ON Transcriptions(VideoId);
+
+            CREATE INDEX IF NOT EXISTS IX_Summaries_VideoId
+                ON Summaries(VideoId);
 
             CREATE INDEX IF NOT EXISTS IX_RateLimitMetrics_Timestamp
                 ON RateLimitMetrics(Timestamp);

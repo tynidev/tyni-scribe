@@ -35,8 +35,10 @@ public static class YtChannelServiceCollectionExtensions
         services.AddSingleton<IYouTubeChannelService, YouTubeChannelService>();
         services.AddSingleton<ChannelSyncService>();
         services.AddSingleton<ChannelManifestService>();
+        services.AddSingleton<ChannelSummaryPromptStore>();
         services.AddSingleton<RateLimitTracker>();
         services.AddSingleton<ChannelOrchestrator>();
+        services.AddSingleton<ChannelSummaryOrchestrator>();
 
         return services;
     }

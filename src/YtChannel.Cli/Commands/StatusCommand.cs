@@ -49,6 +49,9 @@ internal static class StatusCommand
                     var pending = await repository.CountVideosByStatusAsync(channelId, "pending", cts.Token);
                     var completed = await repository.CountVideosByStatusAsync(channelId, "completed", cts.Token);
                     var failed = await repository.CountVideosByStatusAsync(channelId, "failed", cts.Token);
+                    var summaryPending = await repository.CountVideosBySummaryStatusAsync(channelId, ChannelSummaryStatuses.Pending, cts.Token);
+                    var summarized = await repository.CountVideosBySummaryStatusAsync(channelId, ChannelSummaryStatuses.Summarized, cts.Token);
+                    var summaryFailed = await repository.CountVideosBySummaryStatusAsync(channelId, ChannelSummaryStatuses.Failed, cts.Token);
 
                     var pct = total > 0 ? (completed * 100.0 / total).ToString("F1") : "0.0";
 
@@ -61,6 +64,9 @@ internal static class StatusCommand
                     Console.WriteLine($"Completed : {completed} ({pct}%)");
                     Console.WriteLine($"Pending   : {pending}");
                     Console.WriteLine($"Failed    : {failed}");
+                    Console.WriteLine($"Summarized: {summarized}");
+                    Console.WriteLine($"Summary pending: {summaryPending}");
+                    Console.WriteLine($"Summary failed : {summaryFailed}");
                 }
                 catch (OperationCanceledException)
                 {

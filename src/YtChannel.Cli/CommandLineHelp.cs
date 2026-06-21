@@ -18,6 +18,8 @@ internal static class CommandLineHelp
         writer.WriteLine("      Show transcript status for one or more channels");
         writer.WriteLine("  process <channel-url-or-id>... [--output-dir <dir>] [options]");
         writer.WriteLine("      Discover/sync and process pending videos for one or more channels");
+        writer.WriteLine("  summarize [channel-url-or-id]... [--channels-file <path>] [options]");
+        writer.WriteLine("      Summarize transcribed videos without successful summaries");
         writer.WriteLine();
         writer.WriteLine("Shared channel input:");
         writer.WriteLine("  Positional channels can be provided to all commands.");
@@ -37,6 +39,14 @@ internal static class CommandLineHelp
         writer.WriteLine("  --provider <id>             Transcription provider ID override");
         writer.WriteLine("  --watch                     Repeat process cycle every 30 minutes until Ctrl+C");
         writer.WriteLine();
+        writer.WriteLine("Summarize options:");
+        writer.WriteLine("  --max-videos <n>            Limit videos per run/channel");
+        writer.WriteLine("  --include-shorts            Include Shorts (default excludes UUSH videos <= 180s)");
+        writer.WriteLine("  --overwrite                 Regenerate summaries even when already summarized");
+        writer.WriteLine("  --context-tokens <n>        Loaded model context length (default: 98304)");
+        writer.WriteLine("  --max-output-tokens <n>     max_tokens sent to the endpoint (default: 2048)");
+        writer.WriteLine("  --estimate-only             Plan summaries without calling the model or writing files");
+        writer.WriteLine();
         writer.WriteLine("Exit codes:");
         writer.WriteLine("  0   Success");
         writer.WriteLine("  1   One or more channels failed");
@@ -53,5 +63,7 @@ internal static class CommandLineHelp
         writer.WriteLine("  yt-channel status https://www.youtube.com/@ChannelOne --channels-file channels.txt");
         writer.WriteLine("  yt-channel process https://www.youtube.com/@ChannelOne --output-dir C:\\transcripts");
         writer.WriteLine("  yt-channel process --channels-file channels.txt --output-dir C:\\transcripts --max-videos 10 --watch");
+        writer.WriteLine("  yt-channel summarize --max-videos 5");
+        writer.WriteLine("  yt-channel summarize --channels-file channels.txt --max-videos 10");
     }
 }

@@ -165,7 +165,7 @@ build/native/Tts.WhisperInterop/tts-whisper-interop.dll
 
 ## Solution Projects
 
-The managed solution has five projects:
+The managed solution includes these projects:
 
 ```text
 src/Tts.Core           Shared configuration, paths, audio/transcription providers, timing primitives, native engine wrappers, and generic media preparation.
@@ -173,6 +173,10 @@ src/Tts.App            WPF tray app, settings UI, hotkeys, session orchestration
 src/Tts.Cli            Focused transcription CLI for local audio files and benchmarks.
 src/YtScribe.Core      YouTube metadata/caption/audio ingestion and transcript artifact writing.
 src/YtScribe.Cli       `yt-scribe` transcript-export command-line app.
+src/YtChannel.Core     YouTube channel discovery, SQLite tracking, transcript orchestration, and summary orchestration.
+src/YtChannel.Cli      `yt-channel` channel batch command-line app.
+src/TranscriptSummary.Core  Transcript artifact summarization through local OpenAI-compatible chat completions.
+src/TranscriptSummary.Cli   `transcript-summary` summary-export command-line app.
 ```
 
 Native/runtime assets such as `tts-whisper-interop.dll` and CUDA runtime DLLs are copied by `src/Tts.Core/Tts.Core.csproj` into consuming outputs when present.
@@ -282,6 +286,153 @@ transcript.txt     Plain text convenience output unless `--no-transcript-text` i
 ```
 
 Transcript content is written only to explicit transcript artifacts. Metrics and errors are sanitized and should not contain raw transcript text, raw captions, raw stderr, secrets, or endpoint URLs.
+
+## Transcript Summary Export
+
+`transcript-summary` reads a `yt-scribe` `transcript.json` artifact, sends transcript text to a local OpenAI-compatible chat completions endpoint, and writes the model response directly to a Markdown/text summary file. The default endpoint is intended for local LM Studio-style servers and does not use an API key:
+
+```text
+http://localhost:1234/v1/chat/completions
+```
+
+Build through the solution or directly:
+
+```powershell
+dotnet build src/TranscriptSummary.Cli/TranscriptSummary.Cli.csproj -c Release
+```
+
+If you built the solution with `/p:UseAppHost=false`, run the DLL with `dotnet` or rebuild this CLI directly to recreate `transcript-summary.exe`:
+
+```powershell
+dotnet src\TranscriptSummary.Cli\bin\Release\net8.0-windows\transcript-summary.dll summarize --help
+```
+
+Summarize one transcript:
+
+```powershell
+src\TranscriptSummary.Cli\bin\Release\net8.0-windows\transcript-summary.exe summarize `
+    --input "$env:TEMP\yt-scribe\<video-id>\transcript.json" `
+    --output "$env:TEMP\yt-scribe\<video-id>\summary.md"
+```
+
+Defaults:
+
+```text
+prompt:   Read this transcript and return a high level overview in smart brevity format
+model:    gemma-4-26b-a4b-it
+context:  98304 tokens
+output:   2048 max output tokens
+endpoint: http://localhost:1234/v1/chat/completions
+```
+
+Tune context planning and capture timing metrics for benchmark comparisons:
+
+```powershell
+src\TranscriptSummary.Cli\bin\Release\net8.0-windows\transcript-summary.exe summarize `
+    --input "$env:TEMP\yt-scribe\<video-id>\transcript.json" `
+    --output "$env:TEMP\summary-48k.md" `
+    --context-tokens 49152 `
+    --max-output-tokens 768 `
+    --metrics-output "$env:TEMP\summary-48k-metrics.json"
+
+src\TranscriptSummary.Cli\bin\Release\net8.0-windows\transcript-summary.exe summarize `
+    --input "$env:TEMP\yt-scribe\<video-id>\transcript.json" `
+    --output "$env:TEMP\summary-98k.md" `
+    --context-tokens 98304 `
+    --max-output-tokens 2048 `
+    --metrics-output "$env:TEMP\summary-98k-metrics.json"
+
+src\TranscriptSummary.Cli\bin\Release\net8.0-windows\transcript-summary.exe summarize `
+    --input "$env:TEMP\yt-scribe\<video-id>\transcript.json" `
+    --output "$env:TEMP\summary-128k.md" `
+    --context-tokens 131072 `
+    --max-output-tokens 2048 `
+    --metrics-output "$env:TEMP\summary-128k-metrics.json"
+```
+
+Make sure the model is actually loaded in the local server with a matching context length before comparing runs. The CLI uses `--context-tokens` to plan chunking; it does not change the server's loaded context length.
+
+Use `--estimate-only` to inspect the planned chunk and merge shape without calling the model or writing summary text:
+
+```powershell
+src\TranscriptSummary.Cli\bin\Release\net8.0-windows\transcript-summary.exe summarize `
+    --input "$env:TEMP\yt-scribe\<video-id>\transcript.json" `
+    --output "$env:TEMP\summary.md" `
+    --estimate-only `
+    --metrics-output "$env:TEMP\summary-estimate.json"
+```
+
+Metrics include the configured context size, estimated transcript tokens, chunk count, merge pass count, request count, per-request timings, per-pass timings, total LLM time, and total elapsed time. Metrics and errors should not contain prompt text, transcript text, summary text, or full endpoint URLs.
+
+Long hierarchical runs print chunk and merge progress to stderr, while stdout remains reserved for the final output path.
+
+## yt-channel Transcript Summary Orchestration
+
+`yt-channel summarize` reads `%AppData%\yt-channel\channel-data.db`, finds videos that have successful transcript artifacts but do not have a successful summary, and writes `summary.md` next to each video's `transcript.json`. It reuses the same local OpenAI-compatible summary service as `transcript-summary`.
+
+Build through the solution or directly:
+
+```powershell
+dotnet build src/YtChannel.Cli/YtChannel.Cli.csproj -c Release
+```
+
+Plan the next summary run without calling the model or writing summary files:
+
+```powershell
+src\YtChannel.Cli\bin\Release\net8.0-windows\yt-channel.exe summarize `
+    --max-videos 5 `
+    --estimate-only
+```
+
+Summarize every transcribed video in the database that is not already summarized:
+
+```powershell
+src\YtChannel.Cli\bin\Release\net8.0-windows\yt-channel.exe summarize
+```
+
+Summarize only specific channels:
+
+```powershell
+src\YtChannel.Cli\bin\Release\net8.0-windows\yt-channel.exe summarize `
+    https://www.youtube.com/@ChannelOne `
+    --max-videos 10
+```
+
+Defaults:
+
+```text
+prompt:   Read this transcript and return a high level overview in smart brevity format
+model:    gemma-4-26b-a4b-it
+context:  98304 tokens
+output:   2048 max output tokens
+endpoint: http://localhost:1234/v1/chat/completions
+```
+
+The SQLite database keeps transcript and summary lifecycles separate. `Videos.TranscriptStatus` remains `pending`, `completed`, or `failed`; `Videos.SummaryStatus` is `pending`, `summarized`, or `failed`. Summary result rows are stored in the `Summaries` table with sanitized model, endpoint host, token settings, timing, and error metadata. The database should not contain prompt text, transcript text, summary text, API keys, or full endpoint URLs.
+
+Per-channel summary settings can be stored next to the generated `channel.json` manifest:
+
+```text
+%AppData%\yt-channel\transcripts\<channel-id>\channel.summary.json
+```
+
+Example:
+
+```json
+{
+    "schemaVersion": 1,
+    "summaryPrompt": "Read this transcript for this channel's audience and return a high-level overview in smart brevity format.",
+    "model": "gemma-4-26b-a4b-it",
+    "endpoint": "http://localhost:1234/v1/chat/completions",
+    "contextTokens": 98304,
+    "reservedOutputTokens": 1024,
+    "maxOutputTokens": 2048,
+    "charsPerToken": 3.0,
+    "timeoutSeconds": 120
+}
+```
+
+Only `summaryPrompt` is normally worth editing. Other values are optional overrides. Explicit CLI flags take precedence over `channel.summary.json`, and missing settings fall back to the built-in defaults. `channel.json` is generated output and may be overwritten; keep hand-edited summary settings in `channel.summary.json`.
 
 ## LibriSpeech Benchmark Scripts
 
