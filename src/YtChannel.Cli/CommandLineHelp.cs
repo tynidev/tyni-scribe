@@ -16,8 +16,14 @@ internal static class CommandLineHelp
         writer.WriteLine("      Sync one or more channels to local database");
         writer.WriteLine("  status <channel-url-or-id>... [--channels-file <path>]");
         writer.WriteLine("      Show transcript status for one or more channels");
+        writer.WriteLine("  retention <channel-url-or-id> --max-age-days <n>|--max-age-months <n> [--prune]");
+        writer.WriteLine("      Set a per-channel video retention window");
         writer.WriteLine("  process <channel-url-or-id>... [--output-dir <dir>] [options]");
         writer.WriteLine("      Discover/sync and process pending videos for one or more channels");
+        writer.WriteLine("  scan [--watch] [--interval-minutes <n>]");
+        writer.WriteLine("      Sync enabled DB channels for new videos");
+        writer.WriteLine("  transcribe [--watch] [--idle-sleep-minutes <n>] [options]");
+        writer.WriteLine("      Transcribe newest pending DB video, rescanning between videos");
         writer.WriteLine("  summarize [channel-url-or-id]... [--channels-file <path>] [options]");
         writer.WriteLine("      Summarize transcribed videos without successful summaries");
         writer.WriteLine();
@@ -25,6 +31,12 @@ internal static class CommandLineHelp
         writer.WriteLine("  Positional channels can be provided to all commands.");
         writer.WriteLine("  --channels-file <path> can be used with all commands.");
         writer.WriteLine("  Inputs are deduplicated case-insensitively in first-seen order.");
+        writer.WriteLine();
+        writer.WriteLine("Retention options:");
+        writer.WriteLine("  --max-age-days <n>           Keep videos published within the last N days");
+        writer.WriteLine("  --max-age-months <n>         Keep videos published within about N months (30 days each)");
+        writer.WriteLine("  --clear                      Remove the retention override");
+        writer.WriteLine("  --prune                      Delete older DB rows and transcript/summary folders now");
         writer.WriteLine();
         writer.WriteLine("Process options:");
         writer.WriteLine("  --output-dir, -o <dir>      Root directory for transcript output");

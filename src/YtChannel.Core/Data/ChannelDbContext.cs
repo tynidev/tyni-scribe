@@ -35,7 +35,7 @@ public sealed class ChannelDbContext : IAsyncDisposable
     private static async Task EnableWalModeAsync(SqliteConnection connection, CancellationToken cancellationToken)
     {
         using var cmd = connection.CreateCommand();
-        cmd.CommandText = "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;";
+        cmd.CommandText = "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=30000;";
         await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 

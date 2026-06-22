@@ -36,6 +36,7 @@ public static class YtChannelServiceCollectionExtensions
         services.AddSingleton<ChannelSyncService>();
         services.AddSingleton<ChannelManifestService>();
         services.AddSingleton<ChannelSummaryPromptStore>();
+        services.AddSingleton<ChannelRetentionService>();
         services.AddSingleton<RateLimitTracker>();
         services.AddSingleton<ChannelOrchestrator>();
         services.AddSingleton<ChannelSummaryOrchestrator>();

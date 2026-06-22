@@ -14,7 +14,10 @@ public interface IYouTubeChannelService
     Task<YouTubeChannelInfo> GetChannelInfoAsync(string channelUrl, CancellationToken cancellationToken = default);
 
     /// <summary>Returns all videos in the channel (handles pagination).</summary>
-    Task<IReadOnlyList<ChannelVideoInfo>> GetChannelVideosAsync(string channelId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<ChannelVideoInfo>> GetChannelVideosAsync(
+        string channelId,
+        DateTimeOffset? publishedAfter = null,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class YouTubeChannelService : IYouTubeChannelService, IDisposable
@@ -74,7 +77,10 @@ public sealed class YouTubeChannelService : IYouTubeChannelService, IDisposable
             ThumbnailUrl: hit.Snippet.Thumbnails?.Default__?.Url);
     }
 
-    public async Task<IReadOnlyList<ChannelVideoInfo>> GetChannelVideosAsync(string channelId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<ChannelVideoInfo>> GetChannelVideosAsync(
+        string channelId,
+        DateTimeOffset? publishedAfter = null,
+        CancellationToken cancellationToken = default)
     {
         // Get the channel's uploads playlist ID.
         var channelReq = _youTubeService.Channels.List("contentDetails");
@@ -89,6 +95,7 @@ public sealed class YouTubeChannelService : IYouTubeChannelService, IDisposable
         var videos = new List<ChannelVideoInfo>();
         string? pageToken = null;
 
+        var reachedRetentionCutoff = false;
         do
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -106,19 +113,26 @@ public sealed class YouTubeChannelService : IYouTubeChannelService, IDisposable
                     var videoId = item.ContentDetails?.VideoId ?? item.Snippet?.ResourceId?.VideoId;
                     if (string.IsNullOrWhiteSpace(videoId)) continue;
 
+                    var publishedAt = item.ContentDetails?.VideoPublishedAtDateTimeOffset;
+                    if (publishedAfter.HasValue && publishedAt.HasValue && publishedAt.Value < publishedAfter.Value)
+                    {
+                        reachedRetentionCutoff = true;
+                        continue;
+                    }
+
                     videos.Add(new ChannelVideoInfo(
                         VideoId: videoId,
                         VideoUrl: $"https://www.youtube.com/watch?v={videoId}",
                         Title: item.Snippet?.Title,
                         DurationSeconds: null,
                         IsShortsPlaylistVideo: null,
-                        PublishedAt: item.ContentDetails?.VideoPublishedAtDateTimeOffset?.ToString("O"),
+                        PublishedAt: publishedAt?.ToString("O"),
                         ThumbnailUrl: item.Snippet?.Thumbnails?.Default__?.Url));
                 }
             }
 
             pageToken = playlistResp.NextPageToken;
-        } while (pageToken is not null);
+        } while (pageToken is not null && !reachedRetentionCutoff);
 
         // Enrich with precise durations from videos.list(contentDetails).
         var durations = await GetVideoDurationsAsync(videos.Select(v => v.VideoId).Distinct(StringComparer.Ordinal), cancellationToken);
@@ -259,6 +273,11 @@ public sealed class YouTubeChannelService : IYouTubeChannelService, IDisposable
     /// <summary>Extracts a raw channel ID (UCxxx...) from a URL if present.</summary>
     private static string? ExtractChannelId(string url)
     {
+        if (System.Text.RegularExpressions.Regex.IsMatch(url, @"^UC[\w-]+$"))
+        {
+            return url;
+        }
+
         // https://www.youtube.com/channel/UCxxxxxx
         var match = System.Text.RegularExpressions.Regex.Match(url, @"youtube\.com/channel/(UC[\w-]+)");
         return match.Success ? match.Groups[1].Value : null;

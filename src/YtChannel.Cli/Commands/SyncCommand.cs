@@ -25,6 +25,7 @@ internal static class SyncCommand
 
         var syncService = serviceProvider.GetRequiredService<ChannelSyncService>();
         var manifestService = serviceProvider.GetRequiredService<ChannelManifestService>();
+        var retentionService = serviceProvider.GetRequiredService<ChannelRetentionService>();
         var hadFailures = false;
 
         try
@@ -42,11 +43,17 @@ internal static class SyncCommand
                 {
                     Console.Error.WriteLine($"Syncing channel: {channelInput}");
                     var result = await syncService.SyncChannelAsync(channelInput, cts.Token);
+                    var retention = await retentionService.PruneAsync(result.ChannelId, GetDefaultOutputDirectory(), cts.Token);
 
                     Console.WriteLine($"Channel: {result.ChannelName} ({result.ChannelId})");
                     Console.WriteLine($"Total videos in channel : {result.TotalVideosInChannel}");
                     Console.WriteLine($"Newly added to database : {result.NewlyInserted}");
                     Console.WriteLine($"Already in database     : {result.AlreadyInDatabase}");
+                    if (retention.MaxVideoAgeDays.HasValue)
+                    {
+                        Console.WriteLine($"Retention window        : {retention.MaxVideoAgeDays.Value} days");
+                        Console.WriteLine($"Pruned old videos       : {retention.PrunedVideos}");
+                    }
 
                     var manifest = await manifestService.WriteAsync(GetDefaultOutputDirectory(), result, cts.Token);
                     Console.WriteLine($"Manifest updated        : {manifest.OutputPath}");

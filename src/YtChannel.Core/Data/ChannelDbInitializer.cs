@@ -25,7 +25,14 @@ public static class ChannelDbInitializer
                 ChannelName TEXT,
                 Description TEXT,
                 ThumbnailUrl TEXT,
+                IsEnabled INTEGER NOT NULL DEFAULT 1,
+                ScanIntervalMinutes INTEGER NOT NULL DEFAULT 30,
+                MaxVideoAgeDays INTEGER,
                 SyncedAt    TEXT,
+                LastScanStartedAt TEXT,
+                LastScanCompletedAt TEXT,
+                NextScanAfter TEXT,
+                ScanStatus TEXT NOT NULL DEFAULT 'pending',
                 CreatedAt   TEXT NOT NULL
             );
 
@@ -99,6 +106,14 @@ public static class ChannelDbInitializer
             columnName: "SummaryStatus",
             columnDefinition: "TEXT NOT NULL DEFAULT 'pending'",
             cancellationToken);
+
+        await AddMissingColumnAsync(connection, "Channels", "IsEnabled", "INTEGER NOT NULL DEFAULT 1", cancellationToken);
+        await AddMissingColumnAsync(connection, "Channels", "ScanIntervalMinutes", "INTEGER NOT NULL DEFAULT 30", cancellationToken);
+        await AddMissingColumnAsync(connection, "Channels", "MaxVideoAgeDays", "INTEGER", cancellationToken);
+        await AddMissingColumnAsync(connection, "Channels", "LastScanStartedAt", "TEXT", cancellationToken);
+        await AddMissingColumnAsync(connection, "Channels", "LastScanCompletedAt", "TEXT", cancellationToken);
+        await AddMissingColumnAsync(connection, "Channels", "NextScanAfter", "TEXT", cancellationToken);
+        await AddMissingColumnAsync(connection, "Channels", "ScanStatus", "TEXT NOT NULL DEFAULT 'pending'", cancellationToken);
     }
 
     private static async Task AddMissingColumnAsync(
@@ -142,6 +157,9 @@ public static class ChannelDbInitializer
             CREATE INDEX IF NOT EXISTS IX_Videos_CreatedAt
                 ON Videos(CreatedAt);
 
+            CREATE INDEX IF NOT EXISTS IX_Videos_ChannelId_PublishedAt
+                ON Videos(ChannelId, PublishedAt);
+
             CREATE INDEX IF NOT EXISTS IX_Transcriptions_VideoId
                 ON Transcriptions(VideoId);
 
@@ -150,6 +168,9 @@ public static class ChannelDbInitializer
 
             CREATE INDEX IF NOT EXISTS IX_RateLimitMetrics_Timestamp
                 ON RateLimitMetrics(Timestamp);
+
+            CREATE INDEX IF NOT EXISTS IX_Channels_IsEnabled_NextScanAfter
+                ON Channels(IsEnabled, NextScanAfter);
             """;
         await cmd.ExecuteNonQueryAsync(cancellationToken);
     }

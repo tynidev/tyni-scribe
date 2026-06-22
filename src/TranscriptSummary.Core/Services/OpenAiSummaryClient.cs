@@ -13,6 +13,8 @@ public sealed class OpenAiSummaryClient(HttpClient httpClient) : IOpenAiSummaryC
 
     public async Task<OpenAiSummaryResult> SummarizeAsync(OpenAiSummaryRequest request, CancellationToken cancellationToken = default)
     {
+        httpClient.Timeout = Timeout.InfiniteTimeSpan;
+
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(request.TimeoutSeconds));
 

@@ -52,6 +52,13 @@ public sealed record ProcessingResult(
     ChannelManifestWriteResult? InitialManifestWrite,
     ChannelManifestWriteResult? FinalManifestWrite);
 
+public sealed record TranscribeOneResult(
+    bool HadWork,
+    bool Succeeded,
+    bool Failed,
+    bool Skipped,
+    TimeSpan Elapsed);
+
 /// <summary>
 /// Orchestrates serial transcription of all pending videos in a channel.
 /// Applies adaptive rate-limit delays between caption download attempts.
@@ -63,19 +70,22 @@ public sealed class ChannelOrchestrator
     private readonly RateLimitTracker _rateLimitTracker;
     private readonly IYouTubeExportService _exportService;
     private readonly ChannelRepository _repository;
+    private readonly ChannelRetentionService _retentionService;
 
     public ChannelOrchestrator(
         ChannelSyncService syncService,
         ChannelManifestService manifestService,
         RateLimitTracker rateLimitTracker,
         IYouTubeExportService exportService,
-        ChannelRepository repository)
+        ChannelRepository repository,
+        ChannelRetentionService retentionService)
     {
         _syncService = syncService;
         _manifestService = manifestService;
         _rateLimitTracker = rateLimitTracker;
         _exportService = exportService;
         _repository = repository;
+        _retentionService = retentionService;
     }
 
     /// <summary>
@@ -90,6 +100,7 @@ public sealed class ChannelOrchestrator
     {
         // 1. Sync channel to discover any new videos.
         var syncResult = await _syncService.SyncChannelAsync(channelUrl, cancellationToken);
+        await _retentionService.PruneAsync(syncResult.ChannelId, options.OutputDirectory, cancellationToken);
         var channelOutputDirectory = ChannelManifestService.GetChannelOutputDirectory(
             options.OutputDirectory,
             syncResult.ChannelId);
@@ -147,6 +158,55 @@ public sealed class ChannelOrchestrator
             Elapsed: totalStopwatch.Elapsed,
             InitialManifestWrite: initialManifestWrite,
             FinalManifestWrite: finalManifestWrite);
+    }
+
+    public async Task<TranscribeOneResult> TranscribeNextAsync(
+        string? channelId,
+        ProcessOptions options,
+        Action<ProcessingProgress>? onProgress,
+        CancellationToken cancellationToken = default)
+    {
+        var video = await _repository.GetNextPendingTranscriptVideoAsync(channelId, options.IncludeShorts, cancellationToken);
+        if (video is null)
+        {
+            return new TranscribeOneResult(false, false, false, false, TimeSpan.Zero);
+        }
+
+        await _repository.UpdateVideoStatusAsync(video.VideoId, ChannelTranscriptStatuses.InProgress, cancellationToken);
+
+        var stopwatch = Stopwatch.StartNew();
+        onProgress?.Invoke(new ProcessingProgress
+        {
+            VideoId = video.VideoId,
+            Title = video.Title,
+            Position = 1,
+            Total = 1,
+            Kind = ProcessingEventKind.Started,
+        });
+
+        var channelOutputDirectory = ChannelManifestService.GetChannelOutputDirectory(options.OutputDirectory, video.ChannelId);
+        var (outcome, _, _) = await ProcessVideoWithRetryAsync(
+            video,
+            options,
+            channelOutputDirectory,
+            position: 1,
+            total: 1,
+            onProgress,
+            cancellationToken);
+        stopwatch.Stop();
+
+        if (outcome == VideoOutcome.Skipped)
+        {
+            await _repository.UpdateVideoStatusAsync(video.VideoId, ChannelTranscriptStatuses.Pending, cancellationToken);
+        }
+
+        return outcome switch
+        {
+            VideoOutcome.Succeeded => new TranscribeOneResult(true, true, false, false, stopwatch.Elapsed),
+            VideoOutcome.Failed => new TranscribeOneResult(true, false, true, false, stopwatch.Elapsed),
+            VideoOutcome.Skipped => new TranscribeOneResult(true, false, false, true, stopwatch.Elapsed),
+            _ => new TranscribeOneResult(true, false, true, false, stopwatch.Elapsed),
+        };
     }
 
     private async Task<(VideoOutcome outcome, string? origin, string? errorCategory)> ProcessVideoWithRetryAsync(

@@ -39,11 +39,32 @@ switch (command.ToLowerInvariant())
             return await StatusCommand.RunAsync(commandArgs, sp);
         }
 
+    case "retention":
+        await using (var sp = BuildServiceProvider(requireDb: true))
+        {
+            await InitializeDbAsync(sp);
+            return await RetentionCommand.RunAsync(commandArgs, sp);
+        }
+
     case "process":
         await using (var sp = BuildServiceProvider(requireDb: true))
         {
             await InitializeDbAsync(sp);
             return await ProcessCommand.RunAsync(commandArgs, sp);
+        }
+
+    case "transcribe":
+        await using (var sp = BuildServiceProvider(requireDb: true))
+        {
+            await InitializeDbAsync(sp);
+            return await TranscribeCommand.RunAsync(commandArgs, sp);
+        }
+
+    case "scan":
+        await using (var sp = BuildServiceProvider(requireDb: true))
+        {
+            await InitializeDbAsync(sp);
+            return await ScanCommand.RunAsync(commandArgs, sp);
         }
 
     case "summarize":

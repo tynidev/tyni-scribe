@@ -60,6 +60,7 @@ internal static class StatusCommand
                     Console.WriteLine($"Channel   : {channelInfo.Title}");
                     Console.WriteLine($"ID        : {channelId}");
                     Console.WriteLine($"Last sync : {channel?.SyncedAt?.ToString("yyyy-MM-dd HH:mm") ?? "never"}");
+                    Console.WriteLine($"Retention : {(channel?.MaxVideoAgeDays is > 0 ? $"{channel.MaxVideoAgeDays.Value} days" : "none")}");
                     Console.WriteLine($"Total     : {total}");
                     Console.WriteLine($"Completed : {completed} ({pct}%)");
                     Console.WriteLine($"Pending   : {pending}");

@@ -29,11 +29,16 @@ public sealed class ChannelSyncService
         // 1. Resolve channel info
         var channelInfo = await _youTubeChannelService.GetChannelInfoAsync(channelUrl, cancellationToken);
 
+        var existingChannel = await _repository.GetChannelAsync(channelInfo.ChannelId, cancellationToken);
+        var publishedAfter = existingChannel?.MaxVideoAgeDays is > 0
+            ? now.AddDays(-existingChannel.MaxVideoAgeDays.Value)
+            : (DateTimeOffset?)null;
+
         // 2. Count videos before sync (to compute delta)
         var existingCount = await _repository.CountAllVideosAsync(channelInfo.ChannelId, cancellationToken);
 
         // 3. Fetch all videos from YouTube API
-        var apiVideos = await _youTubeChannelService.GetChannelVideosAsync(channelInfo.ChannelId, cancellationToken);
+        var apiVideos = await _youTubeChannelService.GetChannelVideosAsync(channelInfo.ChannelId, publishedAfter, cancellationToken);
 
         // 4. Upsert channel record
         var channelRecord = new ChannelRecord
@@ -43,6 +48,7 @@ public sealed class ChannelSyncService
             ChannelName  = channelInfo.Title,
             Description  = channelInfo.Description,
             ThumbnailUrl = channelInfo.ThumbnailUrl,
+            MaxVideoAgeDays = existingChannel?.MaxVideoAgeDays,
             SyncedAt     = now,
             CreatedAt    = now,
         };

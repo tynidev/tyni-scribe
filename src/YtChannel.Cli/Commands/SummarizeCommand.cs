@@ -8,6 +8,8 @@ namespace YtChannel.Cli.Commands;
 
 internal static class SummarizeCommand
 {
+    private const int DefaultIdleSleepMinutes = 10;
+
     internal static async Task<int> RunAsync(string[] args, IServiceProvider serviceProvider)
     {
         if (args.Length > 0 && IsHelp(args[0]))
@@ -16,7 +18,7 @@ internal static class SummarizeCommand
             return 2;
         }
 
-        if (!TryParseOptions(args, out var channels, out var options, out var parseError))
+        if (!TryParseOptions(args, out var channels, out var options, out var watch, out var idleSleepMinutes, out var parseError))
         {
             Console.Error.WriteLine($"Error: {parseError}");
             WriteUsage();
@@ -55,37 +57,56 @@ internal static class SummarizeCommand
                 }
             }
 
-            foreach (var channelId in channelIds)
+            var cycle = 1;
+            do
             {
-                Console.Error.WriteLine();
-                Console.Error.WriteLine(channelId is null
-                    ? "Summarizing all transcribed videos without successful summaries."
-                    : $"Summarizing channel: {channelId}");
-                Console.Error.WriteLine($"Context tokens: {options.ContextTokens}; max output tokens: {options.MaxOutputTokens}");
-
-                var result = await orchestrator.SummarizeAsync(
-                    channelId,
-                    options,
-                    onProgress: WriteProgress,
-                    cts.Token);
-
-                processed += result.Processed;
-                succeeded += result.Succeeded;
-                failed += result.Failed;
-                skipped += result.Skipped;
-                if (result.Failed > 0)
+                var cycleProcessed = 0;
+                foreach (var channelId in channelIds)
                 {
-                    hadFailures = true;
+                    Console.Error.WriteLine();
+                    Console.Error.WriteLine(channelId is null
+                        ? "Summarizing all transcribed videos without successful summaries."
+                        : $"Summarizing channel: {channelId}");
+                    Console.Error.WriteLine($"Context tokens: {options.ContextTokens}; max output tokens: {options.MaxOutputTokens}");
+
+                    var result = await orchestrator.SummarizeAsync(
+                        channelId,
+                        options,
+                        onProgress: WriteProgress,
+                        cts.Token);
+
+                    cycleProcessed += result.Processed;
+                    processed += result.Processed;
+                    succeeded += result.Succeeded;
+                    failed += result.Failed;
+                    skipped += result.Skipped;
+                    if (result.Failed > 0)
+                    {
+                        hadFailures = true;
+                    }
+
+                    Console.WriteLine();
+                    Console.WriteLine(channelId is null ? "Summary complete" : $"Channel summary complete: {channelId}");
+                    Console.WriteLine($"  Processed: {result.Processed}");
+                    Console.WriteLine($"  Succeeded: {result.Succeeded}");
+                    Console.WriteLine($"  Failed   : {result.Failed}");
+                    Console.WriteLine($"  Skipped  : {result.Skipped}");
+                    Console.WriteLine($"  Elapsed  : {result.Elapsed.TotalSeconds:F1}s");
                 }
 
-                Console.WriteLine();
-                Console.WriteLine(channelId is null ? "Summary complete" : $"Channel summary complete: {channelId}");
-                Console.WriteLine($"  Processed: {result.Processed}");
-                Console.WriteLine($"  Succeeded: {result.Succeeded}");
-                Console.WriteLine($"  Failed   : {result.Failed}");
-                Console.WriteLine($"  Skipped  : {result.Skipped}");
-                Console.WriteLine($"  Elapsed  : {result.Elapsed.TotalSeconds:F1}s");
-            }
+                if (!watch || options.MaxVideos.HasValue)
+                {
+                    break;
+                }
+
+                if (cycleProcessed == 0)
+                {
+                    Console.Error.WriteLine($"No summary work. Sleeping {idleSleepMinutes} minutes.");
+                    await Task.Delay(TimeSpan.FromMinutes(idleSleepMinutes), cts.Token);
+                }
+
+                cycle++;
+            } while (true);
 
             Console.WriteLine();
             Console.WriteLine("Summary run totals");
@@ -145,10 +166,14 @@ internal static class SummarizeCommand
         string[] args,
         out string[] channels,
         out ChannelSummaryOptions options,
+        out bool watch,
+        out int idleSleepMinutes,
         out string? error)
     {
         channels = Array.Empty<string>();
         options = null!;
+        watch = false;
+        idleSleepMinutes = DefaultIdleSleepMinutes;
         error = null;
 
         var positionalChannels = new List<string>();
@@ -191,6 +216,14 @@ internal static class SummarizeCommand
 
                 case "--estimate-only":
                     estimateOnly = true;
+                    break;
+
+                case "--watch":
+                    watch = true;
+                    break;
+
+                case "--idle-sleep-minutes":
+                    if (!TryReadInt(args, ref i, token, out idleSleepMinutes, out error)) return false;
                     break;
 
                 case "--prompt":
@@ -253,6 +286,12 @@ internal static class SummarizeCommand
         if (contextTokens <= 0 || reservedOutputTokens <= 0 || maxOutputTokens <= 0 || timeoutSeconds <= 0)
         {
             error = "Token and timeout values must be greater than zero.";
+            return false;
+        }
+
+        if (idleSleepMinutes <= 0)
+        {
+            error = "--idle-sleep-minutes must be greater than zero.";
             return false;
         }
 
@@ -373,6 +412,8 @@ internal static class SummarizeCommand
         Console.Error.WriteLine("  --chars-per-token <n>           Token estimate ratio (default: 3.0)");
         Console.Error.WriteLine("  --timeout-seconds <n>           Timeout per LLM request (default: 120)");
         Console.Error.WriteLine("  --estimate-only                 Plan summaries without calling the model or writing files");
+        Console.Error.WriteLine("  --watch                         Keep polling when no summary work is available");
+        Console.Error.WriteLine("  --idle-sleep-minutes <n>        Sleep duration when --watch has no work (default: 10)");
         Console.Error.WriteLine();
         Console.Error.WriteLine("Per-channel config:");
         Console.Error.WriteLine("  channel.summary.json next to channel.json can override prompt/model/token defaults.");

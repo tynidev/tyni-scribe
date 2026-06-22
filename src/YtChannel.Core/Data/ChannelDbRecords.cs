@@ -8,7 +8,14 @@ public sealed class ChannelRecord
     public string? ChannelName { get; set; }
     public string? Description { get; set; }
     public string? ThumbnailUrl { get; set; }
+    public bool IsEnabled { get; set; } = true;
+    public int ScanIntervalMinutes { get; set; } = 30;
+    public int? MaxVideoAgeDays { get; set; }
     public DateTimeOffset? SyncedAt { get; set; }
+    public DateTimeOffset? LastScanStartedAt { get; set; }
+    public DateTimeOffset? LastScanCompletedAt { get; set; }
+    public DateTimeOffset? NextScanAfter { get; set; }
+    public string ScanStatus { get; set; } = "pending";
     public DateTimeOffset CreatedAt { get; set; }
 }
 
@@ -21,8 +28,8 @@ public sealed class VideoRecord
     public double? DurationSeconds { get; set; }
     public bool? IsShortsPlaylistVideo { get; set; }
     public string? PublishedAt { get; set; }
-    /// <summary>pending | completed | failed</summary>
-    public string TranscriptStatus { get; set; } = "pending";
+    /// <summary>pending | in-progress | completed | failed</summary>
+    public string TranscriptStatus { get; set; } = ChannelTranscriptStatuses.Pending;
     /// <summary>pending | summarized | failed</summary>
     public string SummaryStatus { get; set; } = ChannelSummaryStatuses.Pending;
     public DateTimeOffset CreatedAt { get; set; }
@@ -32,7 +39,16 @@ public sealed class VideoRecord
 public static class ChannelSummaryStatuses
 {
     public const string Pending = "pending";
+    public const string InProgress = "in-progress";
     public const string Summarized = "summarized";
+    public const string Failed = "failed";
+}
+
+public static class ChannelTranscriptStatuses
+{
+    public const string Pending = "pending";
+    public const string InProgress = "in-progress";
+    public const string Completed = "completed";
     public const string Failed = "failed";
 }
 
@@ -114,3 +130,5 @@ public sealed class RateLimitMetricRecord
     public int? HttpStatus { get; set; }
     public long BackoffAppliedMs { get; set; }
 }
+
+public sealed record VideoRetentionPruneCandidate(string VideoId);

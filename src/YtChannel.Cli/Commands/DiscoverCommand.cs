@@ -44,7 +44,7 @@ internal static class DiscoverCommand
                     Console.Error.WriteLine($"Channel: {channelInfo.Title} ({channelInfo.ChannelId})");
                     Console.Error.WriteLine("Fetching video list...");
 
-                    var videos = await channelService.GetChannelVideosAsync(channelInfo.ChannelId, cts.Token);
+                    var videos = await channelService.GetChannelVideosAsync(channelInfo.ChannelId, cancellationToken: cts.Token);
 
                     Console.WriteLine($"{"VideoId",-15} {"PublishedAt",-12} Title");
                     Console.WriteLine(new string('-', 80));

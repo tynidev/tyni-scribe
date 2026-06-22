@@ -64,34 +64,44 @@ public sealed class ChannelSummaryOrchestrator(
         Action<ChannelSummaryProgress>? onProgress,
         CancellationToken cancellationToken = default)
     {
-        var candidates = await repository.GetSummarizationCandidatesAsync(
-            channelId,
-            options.MaxVideos,
-            options.IncludeShorts,
-            includeAlreadySummarized: options.Overwrite,
-            cancellationToken);
-
         var totalStopwatch = Stopwatch.StartNew();
         var succeeded = 0;
         var failed = 0;
         var skipped = 0;
+        var processed = 0;
 
-        for (var index = 0; index < candidates.Count; index++)
+        while (!options.MaxVideos.HasValue || processed < options.MaxVideos.Value)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var candidate = candidates[index];
-            var position = index + 1;
+            var candidates = await repository.GetSummarizationCandidatesAsync(
+                channelId,
+                limit: 1,
+                options.IncludeShorts,
+                includeAlreadySummarized: options.Overwrite,
+                cancellationToken);
+            var candidate = candidates.FirstOrDefault();
+            if (candidate is null)
+            {
+                break;
+            }
+
+            processed++;
             onProgress?.Invoke(new ChannelSummaryProgress
             {
                 VideoId = candidate.VideoId,
                 Title = candidate.Title,
-                Position = position,
-                Total = candidates.Count,
+                Position = processed,
+                Total = options.MaxVideos ?? 0,
                 Kind = ChannelSummaryEventKind.Started,
             });
 
-            var outcome = await SummarizeVideoAsync(candidate, options, position, candidates.Count, onProgress, cancellationToken);
+            if (!options.EstimateOnly)
+            {
+                await repository.UpdateVideoSummaryStatusAsync(candidate.VideoId, ChannelSummaryStatuses.InProgress, cancellationToken);
+            }
+
+            var outcome = await SummarizeVideoAsync(candidate, options, processed, options.MaxVideos ?? 0, onProgress, cancellationToken);
             switch (outcome)
             {
                 case ChannelSummaryOutcome.Succeeded:
@@ -108,7 +118,7 @@ public sealed class ChannelSummaryOrchestrator(
 
         totalStopwatch.Stop();
         return new ChannelSummaryResult(
-            Processed: candidates.Count,
+            Processed: processed,
             Succeeded: succeeded,
             Failed: failed,
             Skipped: skipped,

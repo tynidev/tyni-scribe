@@ -23,21 +23,34 @@ public sealed class ChannelRepository
         var conn = await _context.GetConnectionAsync(cancellationToken);
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO Channels (ChannelId, ChannelUrl, ChannelName, Description, ThumbnailUrl, SyncedAt, CreatedAt)
-            VALUES ($channelId, $channelUrl, $channelName, $description, $thumbnailUrl, $syncedAt, $createdAt)
+            INSERT INTO Channels (ChannelId, ChannelUrl, ChannelName, Description, ThumbnailUrl, IsEnabled, ScanIntervalMinutes, MaxVideoAgeDays, SyncedAt, LastScanStartedAt, LastScanCompletedAt, NextScanAfter, ScanStatus, CreatedAt)
+            VALUES ($channelId, $channelUrl, $channelName, $description, $thumbnailUrl, $isEnabled, $scanIntervalMinutes, $maxVideoAgeDays, $syncedAt, $lastScanStartedAt, $lastScanCompletedAt, $nextScanAfter, $scanStatus, $createdAt)
             ON CONFLICT(ChannelId) DO UPDATE SET
                 ChannelUrl  = excluded.ChannelUrl,
                 ChannelName = excluded.ChannelName,
                 Description = excluded.Description,
                 ThumbnailUrl = excluded.ThumbnailUrl,
-                SyncedAt    = excluded.SyncedAt;
+                ScanIntervalMinutes = excluded.ScanIntervalMinutes,
+                MaxVideoAgeDays = COALESCE(excluded.MaxVideoAgeDays, Channels.MaxVideoAgeDays),
+                SyncedAt    = excluded.SyncedAt,
+                LastScanStartedAt = excluded.LastScanStartedAt,
+                LastScanCompletedAt = excluded.LastScanCompletedAt,
+                NextScanAfter = excluded.NextScanAfter,
+                ScanStatus = excluded.ScanStatus;
             """;
         cmd.Parameters.AddWithValue("$channelId", channel.ChannelId);
         cmd.Parameters.AddWithValue("$channelUrl", channel.ChannelUrl);
         cmd.Parameters.AddWithValue("$channelName", (object?)channel.ChannelName ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$description", (object?)channel.Description ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$thumbnailUrl", (object?)channel.ThumbnailUrl ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$isEnabled", channel.IsEnabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("$scanIntervalMinutes", channel.ScanIntervalMinutes);
+        cmd.Parameters.AddWithValue("$maxVideoAgeDays", (object?)channel.MaxVideoAgeDays ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$syncedAt", (object?)channel.SyncedAt?.ToString("O") ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$lastScanStartedAt", (object?)channel.LastScanStartedAt?.ToString("O") ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$lastScanCompletedAt", (object?)channel.LastScanCompletedAt?.ToString("O") ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$nextScanAfter", (object?)channel.NextScanAfter?.ToString("O") ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$scanStatus", channel.ScanStatus);
         cmd.Parameters.AddWithValue("$createdAt", channel.CreatedAt.ToString("O"));
         await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
@@ -50,6 +63,63 @@ public sealed class ChannelRepository
         cmd.Parameters.AddWithValue("$id", channelId);
         using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         return await reader.ReadAsync(cancellationToken) ? ReadChannel(reader) : null;
+    }
+
+    public async Task<IReadOnlyList<ChannelRecord>> GetEnabledChannelsAsync(CancellationToken cancellationToken = default)
+    {
+        var conn = await _context.GetConnectionAsync(cancellationToken);
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT * FROM Channels WHERE IsEnabled = 1 ORDER BY COALESCE(NextScanAfter, '') ASC, ChannelName COLLATE NOCASE, ChannelId";
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        var results = new List<ChannelRecord>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(ReadChannel(reader));
+        }
+
+        return results;
+    }
+
+    public async Task UpdateChannelScanStartedAsync(string channelId, CancellationToken cancellationToken = default)
+    {
+        var conn = await _context.GetConnectionAsync(cancellationToken);
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE Channels SET LastScanStartedAt = $now, ScanStatus = 'in-progress' WHERE ChannelId = $channelId";
+        cmd.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToString("O"));
+        cmd.Parameters.AddWithValue("$channelId", channelId);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task UpdateChannelScanCompletedAsync(string channelId, int scanIntervalMinutes, string status, CancellationToken cancellationToken = default)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var conn = await _context.GetConnectionAsync(cancellationToken);
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE Channels SET LastScanCompletedAt = $now, NextScanAfter = $nextScanAfter, ScanStatus = $status WHERE ChannelId = $channelId";
+        cmd.Parameters.AddWithValue("$now", now.ToString("O"));
+        cmd.Parameters.AddWithValue("$nextScanAfter", now.AddMinutes(scanIntervalMinutes).ToString("O"));
+        cmd.Parameters.AddWithValue("$status", status);
+        cmd.Parameters.AddWithValue("$channelId", channelId);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task UpdateChannelMaxVideoAgeDaysAsync(string channelId, int maxVideoAgeDays, CancellationToken cancellationToken = default)
+    {
+        var conn = await _context.GetConnectionAsync(cancellationToken);
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE Channels SET MaxVideoAgeDays = $maxVideoAgeDays WHERE ChannelId = $channelId";
+        cmd.Parameters.AddWithValue("$maxVideoAgeDays", maxVideoAgeDays);
+        cmd.Parameters.AddWithValue("$channelId", channelId);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task ClearChannelMaxVideoAgeDaysAsync(string channelId, CancellationToken cancellationToken = default)
+    {
+        var conn = await _context.GetConnectionAsync(cancellationToken);
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE Channels SET MaxVideoAgeDays = NULL WHERE ChannelId = $channelId";
+        cmd.Parameters.AddWithValue("$channelId", channelId);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
     // ── Videos ───────────────────────────────────────────────────────────────
@@ -135,13 +205,16 @@ public sealed class ChannelRepository
     {
         var conn = await _context.GetConnectionAsync(cancellationToken);
         using var cmd = conn.CreateCommand();
+        var retentionPredicate = " AND (PublishedAt IS NULL OR PublishedAt >= $publishedAfter)";
+        var publishedAfter = await GetChannelPublishedAfterAsync(channelId, cancellationToken);
         var shortsPredicate = includeShorts
             ? string.Empty
             : " AND NOT (DurationSeconds IS NOT NULL AND DurationSeconds <= 180 AND IsShortsPlaylistVideo = 1)";
         cmd.CommandText = limit.HasValue
-            ? $"SELECT * FROM Videos WHERE ChannelId = $channelId AND TranscriptStatus = 'pending'{shortsPredicate} ORDER BY PublishedAt DESC LIMIT $limit"
-            : $"SELECT * FROM Videos WHERE ChannelId = $channelId AND TranscriptStatus = 'pending'{shortsPredicate} ORDER BY PublishedAt DESC";
+            ? $"SELECT * FROM Videos WHERE ChannelId = $channelId AND TranscriptStatus = 'pending'{shortsPredicate}{(publishedAfter.HasValue ? retentionPredicate : string.Empty)} ORDER BY PublishedAt DESC LIMIT $limit"
+            : $"SELECT * FROM Videos WHERE ChannelId = $channelId AND TranscriptStatus = 'pending'{shortsPredicate}{(publishedAfter.HasValue ? retentionPredicate : string.Empty)} ORDER BY PublishedAt DESC";
         cmd.Parameters.AddWithValue("$channelId", channelId);
+        if (publishedAfter.HasValue) cmd.Parameters.AddWithValue("$publishedAfter", publishedAfter.Value.ToString("O"));
         if (limit.HasValue) cmd.Parameters.AddWithValue("$limit", limit.Value);
 
         using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
@@ -149,6 +222,102 @@ public sealed class ChannelRepository
         while (await reader.ReadAsync(cancellationToken))
             results.Add(ReadVideo(reader));
         return results;
+    }
+
+    public async Task<VideoRecord?> GetNextPendingTranscriptVideoAsync(
+        string? channelId,
+        bool includeShorts,
+        CancellationToken cancellationToken = default)
+    {
+        var conn = await _context.GetConnectionAsync(cancellationToken);
+        using var cmd = conn.CreateCommand();
+        var channelPredicate = string.IsNullOrWhiteSpace(channelId) ? string.Empty : " AND Videos.ChannelId = $channelId";
+        var retentionPredicate = " AND (c.MaxVideoAgeDays IS NULL OR Videos.PublishedAt IS NULL OR julianday(Videos.PublishedAt) >= julianday('now') - c.MaxVideoAgeDays)";
+        var shortsPredicate = includeShorts
+            ? string.Empty
+            : " AND NOT (DurationSeconds IS NOT NULL AND DurationSeconds <= 180 AND IsShortsPlaylistVideo = 1)";
+        cmd.CommandText = $"SELECT Videos.* FROM Videos INNER JOIN Channels c ON c.ChannelId = Videos.ChannelId WHERE Videos.TranscriptStatus = 'pending'{channelPredicate}{shortsPredicate}{retentionPredicate} ORDER BY Videos.PublishedAt DESC, Videos.VideoId ASC LIMIT 1";
+        if (!string.IsNullOrWhiteSpace(channelId))
+        {
+            cmd.Parameters.AddWithValue("$channelId", channelId);
+        }
+
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken) ? ReadVideo(reader) : null;
+    }
+
+    public async Task<IReadOnlyList<VideoRetentionPruneCandidate>> GetVideosOlderThanAsync(
+        string channelId,
+        DateTimeOffset publishedBefore,
+        CancellationToken cancellationToken = default)
+    {
+        var conn = await _context.GetConnectionAsync(cancellationToken);
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT VideoId FROM Videos WHERE ChannelId = $channelId AND PublishedAt IS NOT NULL AND PublishedAt < $publishedBefore";
+        cmd.Parameters.AddWithValue("$channelId", channelId);
+        cmd.Parameters.AddWithValue("$publishedBefore", publishedBefore.ToString("O"));
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        var results = new List<VideoRetentionPruneCandidate>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(new VideoRetentionPruneCandidate(reader.GetString(reader.GetOrdinal("VideoId"))));
+        }
+
+        return results;
+    }
+
+    public async Task<int> PruneVideosOlderThanAsync(
+        string channelId,
+        DateTimeOffset publishedBefore,
+        CancellationToken cancellationToken = default)
+    {
+        var conn = await _context.GetConnectionAsync(cancellationToken);
+        using var tx = conn.BeginTransaction();
+
+        using var deleteSummaries = conn.CreateCommand();
+        deleteSummaries.Transaction = tx;
+        deleteSummaries.CommandText = """
+            DELETE FROM Summaries
+            WHERE VideoId IN (
+                SELECT VideoId FROM Videos
+                WHERE ChannelId = $channelId
+                  AND PublishedAt IS NOT NULL
+                  AND PublishedAt < $publishedBefore
+            );
+            """;
+        deleteSummaries.Parameters.AddWithValue("$channelId", channelId);
+        deleteSummaries.Parameters.AddWithValue("$publishedBefore", publishedBefore.ToString("O"));
+        await deleteSummaries.ExecuteNonQueryAsync(cancellationToken);
+
+        using var deleteTranscriptions = conn.CreateCommand();
+        deleteTranscriptions.Transaction = tx;
+        deleteTranscriptions.CommandText = """
+            DELETE FROM Transcriptions
+            WHERE VideoId IN (
+                SELECT VideoId FROM Videos
+                WHERE ChannelId = $channelId
+                  AND PublishedAt IS NOT NULL
+                  AND PublishedAt < $publishedBefore
+            );
+            """;
+        deleteTranscriptions.Parameters.AddWithValue("$channelId", channelId);
+        deleteTranscriptions.Parameters.AddWithValue("$publishedBefore", publishedBefore.ToString("O"));
+        await deleteTranscriptions.ExecuteNonQueryAsync(cancellationToken);
+
+        using var deleteVideos = conn.CreateCommand();
+        deleteVideos.Transaction = tx;
+        deleteVideos.CommandText = """
+            DELETE FROM Videos
+            WHERE ChannelId = $channelId
+              AND PublishedAt IS NOT NULL
+              AND PublishedAt < $publishedBefore;
+            """;
+        deleteVideos.Parameters.AddWithValue("$channelId", channelId);
+        deleteVideos.Parameters.AddWithValue("$publishedBefore", publishedBefore.ToString("O"));
+        var pruned = await deleteVideos.ExecuteNonQueryAsync(cancellationToken);
+
+        tx.Commit();
+        return pruned;
     }
 
     public async Task<IReadOnlyList<ChannelVideoIndexRecord>> GetChannelVideoIndexAsync(
@@ -230,6 +399,14 @@ public sealed class ChannelRepository
         return results;
     }
 
+    private async Task<DateTimeOffset?> GetChannelPublishedAfterAsync(string channelId, CancellationToken cancellationToken)
+    {
+        var channel = await GetChannelAsync(channelId, cancellationToken);
+        return channel?.MaxVideoAgeDays is > 0
+            ? DateTimeOffset.UtcNow.AddDays(-channel.MaxVideoAgeDays.Value)
+            : null;
+    }
+
     public async Task<IReadOnlyList<SummaryCandidateRecord>> GetSummarizationCandidatesAsync(
         string? channelId,
         int? limit,
@@ -240,6 +417,7 @@ public sealed class ChannelRepository
         var conn = await _context.GetConnectionAsync(cancellationToken);
         using var cmd = conn.CreateCommand();
         var channelPredicate = string.IsNullOrWhiteSpace(channelId) ? string.Empty : " AND v.ChannelId = $channelId";
+        var retentionPredicate = " AND (c.MaxVideoAgeDays IS NULL OR v.PublishedAt IS NULL OR julianday(v.PublishedAt) >= julianday('now') - c.MaxVideoAgeDays)";
         var summaryPredicate = includeAlreadySummarized ? string.Empty : " AND v.SummaryStatus <> 'summarized'";
         var shortsPredicate = includeShorts
             ? string.Empty
@@ -267,11 +445,13 @@ public sealed class ChannelRepository
                 v.SummaryStatus,
                 t.TranscriptFilePath
             FROM Videos v
+                        INNER JOIN Channels c ON c.ChannelId = v.ChannelId
             INNER JOIN LatestSuccessfulTranscription t ON t.VideoId = v.VideoId
             WHERE v.TranscriptStatus = 'completed'
               {channelPredicate}
               {summaryPredicate}
               {shortsPredicate}
+                            {retentionPredicate}
             ORDER BY v.PublishedAt DESC, v.VideoId ASC
             {limitClause};
             """;
@@ -303,6 +483,25 @@ public sealed class ChannelRepository
         cmd.Parameters.AddWithValue("$status", status);
         cmd.Parameters.AddWithValue("$updatedAt", DateTimeOffset.UtcNow.ToString("O"));
         cmd.Parameters.AddWithValue("$videoId", videoId);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task ResetStaleInProgressAsync(TimeSpan staleAfter, CancellationToken cancellationToken = default)
+    {
+        var cutoff = DateTimeOffset.UtcNow - staleAfter;
+        var conn = await _context.GetConnectionAsync(cancellationToken);
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            UPDATE Videos
+            SET TranscriptStatus = 'pending', UpdatedAt = $now
+            WHERE TranscriptStatus = 'in-progress' AND UpdatedAt < $cutoff;
+
+            UPDATE Videos
+            SET SummaryStatus = 'pending', UpdatedAt = $now
+            WHERE SummaryStatus = 'in-progress' AND UpdatedAt < $cutoff;
+            """;
+        cmd.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToString("O"));
+        cmd.Parameters.AddWithValue("$cutoff", cutoff.ToString("O"));
         await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -420,7 +619,14 @@ public sealed class ChannelRepository
         ChannelName  = r.IsDBNull(r.GetOrdinal("ChannelName"))  ? null : r.GetString(r.GetOrdinal("ChannelName")),
         Description  = r.IsDBNull(r.GetOrdinal("Description"))  ? null : r.GetString(r.GetOrdinal("Description")),
         ThumbnailUrl = r.IsDBNull(r.GetOrdinal("ThumbnailUrl")) ? null : r.GetString(r.GetOrdinal("ThumbnailUrl")),
+        IsEnabled    = r.IsDBNull(r.GetOrdinal("IsEnabled")) || r.GetInt32(r.GetOrdinal("IsEnabled")) != 0,
+        ScanIntervalMinutes = r.IsDBNull(r.GetOrdinal("ScanIntervalMinutes")) ? 30 : r.GetInt32(r.GetOrdinal("ScanIntervalMinutes")),
+        MaxVideoAgeDays = r.IsDBNull(r.GetOrdinal("MaxVideoAgeDays")) ? null : r.GetInt32(r.GetOrdinal("MaxVideoAgeDays")),
         SyncedAt     = r.IsDBNull(r.GetOrdinal("SyncedAt"))     ? null : DateTimeOffset.Parse(r.GetString(r.GetOrdinal("SyncedAt"))),
+        LastScanStartedAt = r.IsDBNull(r.GetOrdinal("LastScanStartedAt")) ? null : DateTimeOffset.Parse(r.GetString(r.GetOrdinal("LastScanStartedAt"))),
+        LastScanCompletedAt = r.IsDBNull(r.GetOrdinal("LastScanCompletedAt")) ? null : DateTimeOffset.Parse(r.GetString(r.GetOrdinal("LastScanCompletedAt"))),
+        NextScanAfter = r.IsDBNull(r.GetOrdinal("NextScanAfter")) ? null : DateTimeOffset.Parse(r.GetString(r.GetOrdinal("NextScanAfter"))),
+        ScanStatus = r.IsDBNull(r.GetOrdinal("ScanStatus")) ? "pending" : r.GetString(r.GetOrdinal("ScanStatus")),
         CreatedAt    = DateTimeOffset.Parse(r.GetString(r.GetOrdinal("CreatedAt"))),
     };
 
