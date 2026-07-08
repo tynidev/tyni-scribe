@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "sourceUrl": "https://youtu.be/5hw-LPsoYeA?si=pQCA37euAYobjWB5",
+  "videoId": "5hw-LPsoYeA",
+  "title": "6 Things Your Dog Needs Every Single Day That You\u0027re Probably Skipping",
+  "channel": "Tom Davis Dog Training ",
+  "uploader": "Tom Davis Dog Training ",
+  "uploadDate": "20260706",
+  "durationSeconds": 775,
+  "webpageUrl": "https://www.youtube.com/watch?v=5hw-LPsoYeA",
+  "thumbnailUrl": "https://i.ytimg.com/vi/5hw-LPsoYeA/maxresdefault.jpg",
+  "captionLanguage": null,
+  "transcriptOrigin": "audio-transcription",
+  "ingestedUtc": "2026-07-08T13:28:49.8518029+00:00",
+  "status": "success",
+  "transcriptionProviderId": "whisper-cpp-native-local",
+  "transcriptionSettings": {
+    "modelId": "tiny-en",
+    "language": "en",
+    "timeoutSeconds": "600"
+  },
+  "metadataMilliseconds": 2856,
+  "captionMilliseconds": null,
+  "audioDownloadMilliseconds": 3960,
+  "mediaPreparationMilliseconds": 1994,
+  "audioProcessingMilliseconds": 0,
+  "transcriptionMilliseconds": 9639
+}

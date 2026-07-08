@@ -1,0 +1,17 @@
+{
+  "status": "success",
+  "errorCategory": null,
+  "sourceUrl": "https://youtu.be/5hw-LPsoYeA?si=pQCA37euAYobjWB5",
+  "videoId": null,
+  "outputDirectory": "C:\\Users\\Tyler.TYLERS-PC\\source\\repos\\tts\\tmp\\yt-transcripts\\5hw-LPsoYeA",
+  "transcriptOrigin": "captions",
+  "transcriptionProviderId": null,
+  "effectiveSettings": null,
+  "metadataMilliseconds": null,
+  "captionMilliseconds": null,
+  "audioDownloadMilliseconds": null,
+  "mediaPreparationMilliseconds": null,
+  "audioProcessingMilliseconds": null,
+  "transcriptionMilliseconds": null,
+  "totalMilliseconds": 6342
+}
