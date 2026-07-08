@@ -210,9 +210,10 @@ public sealed class ChannelRepository
         var shortsPredicate = includeShorts
             ? string.Empty
             : " AND NOT (DurationSeconds IS NOT NULL AND DurationSeconds <= 180 AND IsShortsPlaylistVideo = 1)";
+        var durationPredicate = " AND (DurationSeconds IS NULL OR DurationSeconds > 0)";
         cmd.CommandText = limit.HasValue
-            ? $"SELECT * FROM Videos WHERE ChannelId = $channelId AND TranscriptStatus = 'pending'{shortsPredicate}{(publishedAfter.HasValue ? retentionPredicate : string.Empty)} ORDER BY PublishedAt DESC LIMIT $limit"
-            : $"SELECT * FROM Videos WHERE ChannelId = $channelId AND TranscriptStatus = 'pending'{shortsPredicate}{(publishedAfter.HasValue ? retentionPredicate : string.Empty)} ORDER BY PublishedAt DESC";
+            ? $"SELECT * FROM Videos WHERE ChannelId = $channelId AND TranscriptStatus = 'pending'{durationPredicate}{shortsPredicate}{(publishedAfter.HasValue ? retentionPredicate : string.Empty)} ORDER BY PublishedAt DESC LIMIT $limit"
+            : $"SELECT * FROM Videos WHERE ChannelId = $channelId AND TranscriptStatus = 'pending'{durationPredicate}{shortsPredicate}{(publishedAfter.HasValue ? retentionPredicate : string.Empty)} ORDER BY PublishedAt DESC";
         cmd.Parameters.AddWithValue("$channelId", channelId);
         if (publishedAfter.HasValue) cmd.Parameters.AddWithValue("$publishedAfter", publishedAfter.Value.ToString("O"));
         if (limit.HasValue) cmd.Parameters.AddWithValue("$limit", limit.Value);
@@ -236,7 +237,8 @@ public sealed class ChannelRepository
         var shortsPredicate = includeShorts
             ? string.Empty
             : " AND NOT (DurationSeconds IS NOT NULL AND DurationSeconds <= 180 AND IsShortsPlaylistVideo = 1)";
-        cmd.CommandText = $"SELECT Videos.* FROM Videos INNER JOIN Channels c ON c.ChannelId = Videos.ChannelId WHERE Videos.TranscriptStatus = 'pending'{channelPredicate}{shortsPredicate}{retentionPredicate} ORDER BY Videos.PublishedAt DESC, Videos.VideoId ASC LIMIT 1";
+        var durationPredicate = " AND (Videos.DurationSeconds IS NULL OR Videos.DurationSeconds > 0)";
+        cmd.CommandText = $"SELECT Videos.* FROM Videos INNER JOIN Channels c ON c.ChannelId = Videos.ChannelId WHERE Videos.TranscriptStatus = 'pending'{channelPredicate}{durationPredicate}{shortsPredicate}{retentionPredicate} ORDER BY Videos.PublishedAt DESC, Videos.VideoId ASC LIMIT 1";
         if (!string.IsNullOrWhiteSpace(channelId))
         {
             cmd.Parameters.AddWithValue("$channelId", channelId);
@@ -418,7 +420,7 @@ public sealed class ChannelRepository
         using var cmd = conn.CreateCommand();
         var channelPredicate = string.IsNullOrWhiteSpace(channelId) ? string.Empty : " AND v.ChannelId = $channelId";
         var retentionPredicate = " AND (c.MaxVideoAgeDays IS NULL OR v.PublishedAt IS NULL OR julianday(v.PublishedAt) >= julianday('now') - c.MaxVideoAgeDays)";
-        var summaryPredicate = includeAlreadySummarized ? string.Empty : " AND v.SummaryStatus <> 'summarized'";
+        var summaryPredicate = includeAlreadySummarized ? string.Empty : " AND v.SummaryStatus = 'pending'";
         var shortsPredicate = includeShorts
             ? string.Empty
             : " AND NOT (v.DurationSeconds IS NOT NULL AND v.DurationSeconds <= 180 AND v.IsShortsPlaylistVideo = 1)";
@@ -551,11 +553,15 @@ public sealed class ChannelRepository
             INSERT INTO Summaries
                 (VideoId, SummaryFilePath, ModelId, EndpointHost, ContextTokens, MaxOutputTokens,
                  EstimatedTranscriptTokens, ChunkCount, MergePassCount, LlmRequestCount,
-                 TotalDurationMs, TotalLlmDurationMs, SummarizedAt, ErrorCategory, ErrorMessage)
+                  TotalDurationMs, TotalLlmDurationMs, TotalPromptTokens, TotalCompletionTokens,
+                  TotalTokens, EstimatedOutputTokens, PromptTokensPerSecond, CompletionTokensPerSecond,
+                  TotalTokensPerSecond, SummarizedAt, ErrorCategory, ErrorMessage)
             VALUES
                 ($videoId, $summaryFilePath, $modelId, $endpointHost, $contextTokens, $maxOutputTokens,
                  $estimatedTranscriptTokens, $chunkCount, $mergePassCount, $llmRequestCount,
-                 $totalDurationMs, $totalLlmDurationMs, $summarizedAt, $errorCategory, $errorMessage);
+                  $totalDurationMs, $totalLlmDurationMs, $totalPromptTokens, $totalCompletionTokens,
+                  $totalTokens, $estimatedOutputTokens, $promptTokensPerSecond, $completionTokensPerSecond,
+                  $totalTokensPerSecond, $summarizedAt, $errorCategory, $errorMessage);
             """;
         cmd.Parameters.AddWithValue("$videoId", record.VideoId);
         cmd.Parameters.AddWithValue("$summaryFilePath", (object?)record.SummaryFilePath ?? DBNull.Value);
@@ -569,6 +575,13 @@ public sealed class ChannelRepository
         cmd.Parameters.AddWithValue("$llmRequestCount", (object?)record.LlmRequestCount ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$totalDurationMs", (object?)record.TotalDurationMs ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$totalLlmDurationMs", (object?)record.TotalLlmDurationMs ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$totalPromptTokens", (object?)record.TotalPromptTokens ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$totalCompletionTokens", (object?)record.TotalCompletionTokens ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$totalTokens", (object?)record.TotalTokens ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$estimatedOutputTokens", (object?)record.EstimatedOutputTokens ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$promptTokensPerSecond", (object?)record.PromptTokensPerSecond ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$completionTokensPerSecond", (object?)record.CompletionTokensPerSecond ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$totalTokensPerSecond", (object?)record.TotalTokensPerSecond ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$summarizedAt", (object?)record.SummarizedAt?.ToString("O") ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$errorCategory", (object?)record.ErrorCategory ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$errorMessage", (object?)record.ErrorMessage ?? DBNull.Value);

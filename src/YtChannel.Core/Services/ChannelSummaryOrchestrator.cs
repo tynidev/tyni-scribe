@@ -42,6 +42,14 @@ public sealed class ChannelSummaryProgress
     public long? ElapsedMs { get; init; }
     public string? ErrorCategory { get; init; }
     public bool EstimateOnly { get; init; }
+    public int? TotalPromptTokens { get; init; }
+    public int? TotalCompletionTokens { get; init; }
+    public int? TotalTokens { get; init; }
+    public int? EstimatedTranscriptTokens { get; init; }
+    public int? EstimatedOutputTokens { get; init; }
+    public double? PromptTokensPerSecond { get; init; }
+    public double? CompletionTokensPerSecond { get; init; }
+    public double? TotalTokensPerSecond { get; init; }
 }
 
 public enum ChannelSummaryEventKind
@@ -208,6 +216,14 @@ public sealed class ChannelSummaryOrchestrator(
                 Kind = ChannelSummaryEventKind.Completed,
                 ElapsedMs = videoStopwatch.ElapsedMilliseconds,
                 EstimateOnly = effectiveOptions.EstimateOnly,
+                TotalPromptTokens = result.TotalPromptTokens,
+                TotalCompletionTokens = result.TotalCompletionTokens,
+                TotalTokens = result.TotalTokens,
+                EstimatedTranscriptTokens = result.EstimatedTranscriptTokens,
+                EstimatedOutputTokens = result.EstimatedOutputTokens,
+                PromptTokensPerSecond = result.PromptTokensPerSecond,
+                CompletionTokensPerSecond = result.CompletionTokensPerSecond,
+                TotalTokensPerSecond = result.TotalTokensPerSecond,
             });
             return ChannelSummaryOutcome.Succeeded;
         }
@@ -338,6 +354,13 @@ public sealed class ChannelSummaryOrchestrator(
             LlmRequestCount = result.LlmRequestCount,
             TotalDurationMs = totalDurationMilliseconds,
             TotalLlmDurationMs = result.TotalLlmMilliseconds,
+            TotalPromptTokens = result.TotalPromptTokens,
+            TotalCompletionTokens = result.TotalCompletionTokens,
+            TotalTokens = result.TotalTokens,
+            EstimatedOutputTokens = result.EstimatedOutputTokens,
+            PromptTokensPerSecond = result.PromptTokensPerSecond,
+            CompletionTokensPerSecond = result.CompletionTokensPerSecond,
+            TotalTokensPerSecond = result.TotalTokensPerSecond,
             SummarizedAt = DateTimeOffset.UtcNow,
         };
     }

@@ -152,6 +152,10 @@ internal static class SummarizeCommand
                 Console.WriteLine(progress.EstimateOnly
                     ? $"{prefix}   planned ({progress.ElapsedMs}ms)"
                     : $"{prefix}   summarized ({progress.ElapsedMs}ms)");
+                if (!progress.EstimateOnly)
+                {
+                    WriteTokenStats(prefix, progress);
+                }
                 break;
             case ChannelSummaryEventKind.Failed:
                 Console.WriteLine($"{prefix}   FAILED ({progress.ErrorCategory})");
@@ -161,6 +165,22 @@ internal static class SummarizeCommand
                 break;
         }
     }
+
+    private static void WriteTokenStats(string prefix, ChannelSummaryProgress progress)
+    {
+        if (progress.TotalTokens.HasValue || progress.TotalPromptTokens.HasValue || progress.TotalCompletionTokens.HasValue)
+        {
+            Console.WriteLine($"{prefix}   tokens: prompt={FormatInt(progress.TotalPromptTokens)}, completion={FormatInt(progress.TotalCompletionTokens)}, total={FormatInt(progress.TotalTokens)}");
+            Console.WriteLine($"{prefix}   speed : prompt={FormatRate(progress.PromptTokensPerSecond)}, completion={FormatRate(progress.CompletionTokensPerSecond)}, total={FormatRate(progress.TotalTokensPerSecond)} tok/s");
+            return;
+        }
+
+        Console.WriteLine($"{prefix}   tokens: estimatedInput={FormatInt(progress.EstimatedTranscriptTokens)}, estimatedOutput={FormatInt(progress.EstimatedOutputTokens)}");
+    }
+
+    private static string FormatInt(int? value) => value?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "n/a";
+
+    private static string FormatRate(double? value) => value?.ToString("F3", System.Globalization.CultureInfo.InvariantCulture) ?? "n/a";
 
     private static bool TryParseOptions(
         string[] args,
@@ -410,7 +430,7 @@ internal static class SummarizeCommand
         Console.Error.WriteLine("  --reserved-output-tokens <n>    Tokens reserved for output/instructions (default: 1024)");
         Console.Error.WriteLine("  --max-output-tokens <n>         max_tokens sent to the endpoint (default: 2048)");
         Console.Error.WriteLine("  --chars-per-token <n>           Token estimate ratio (default: 3.0)");
-        Console.Error.WriteLine("  --timeout-seconds <n>           Timeout per LLM request (default: 120)");
+        Console.Error.WriteLine("  --timeout-seconds <n>           Timeout per LLM request (default: 600)");
         Console.Error.WriteLine("  --estimate-only                 Plan summaries without calling the model or writing files");
         Console.Error.WriteLine("  --watch                         Keep polling when no summary work is available");
         Console.Error.WriteLine("  --idle-sleep-minutes <n>        Sleep duration when --watch has no work (default: 10)");

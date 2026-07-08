@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace TranscriptSummary.Core.Services;
 
 public enum TranscriptSummaryMode
@@ -34,6 +36,13 @@ public sealed record TranscriptSummaryResult(
     int MergePassCount,
     int LlmRequestCount,
     long TotalLlmMilliseconds,
+    int? TotalPromptTokens,
+    int? TotalCompletionTokens,
+    int? TotalTokens,
+    int EstimatedOutputTokens,
+    double? PromptTokensPerSecond,
+    double? CompletionTokensPerSecond,
+    double? TotalTokensPerSecond,
     IReadOnlyList<SummaryPassMetric> Passes,
     IReadOnlyList<SummaryRequestMetric> Requests);
 
@@ -50,8 +59,15 @@ public sealed record SummaryRequestMetric(
     int? ChunkIndex,
     string Stage,
     int EstimatedInputTokens,
+    int EstimatedOutputTokens,
     int OutputCharacters,
-    long Milliseconds);
+    long Milliseconds,
+    int? PromptTokens,
+    int? CompletionTokens,
+    int? TotalTokens,
+    double? PromptTokensPerSecond,
+    double? CompletionTokensPerSecond,
+    double? TotalTokensPerSecond);
 
 public sealed record OpenAiSummaryRequest(
     Uri Endpoint,
@@ -61,4 +77,9 @@ public sealed record OpenAiSummaryRequest(
     int MaxOutputTokens,
     int TimeoutSeconds);
 
-public sealed record OpenAiSummaryResult(string Text);
+public sealed record OpenAiSummaryResult(string Text, OpenAiTokenUsage? Usage);
+
+public sealed record OpenAiTokenUsage(
+    [property: JsonPropertyName("prompt_tokens")] int? PromptTokens,
+    [property: JsonPropertyName("completion_tokens")] int? CompletionTokens,
+    [property: JsonPropertyName("total_tokens")] int? TotalTokens);

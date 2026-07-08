@@ -428,7 +428,7 @@ Example:
     "reservedOutputTokens": 1024,
     "maxOutputTokens": 2048,
     "charsPerToken": 3.0,
-    "timeoutSeconds": 120
+    "timeoutSeconds": 600
 }
 ```
 

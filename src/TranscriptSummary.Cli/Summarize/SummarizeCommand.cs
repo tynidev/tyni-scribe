@@ -149,6 +149,13 @@ internal static class SummarizeCommand
             result?.MergePassCount,
             result?.LlmRequestCount,
             result?.TotalLlmMilliseconds,
+            result?.TotalPromptTokens,
+            result?.TotalCompletionTokens,
+            result?.TotalTokens,
+            result?.EstimatedOutputTokens,
+            result?.PromptTokensPerSecond,
+            result?.CompletionTokensPerSecond,
+            result?.TotalTokensPerSecond,
             result?.Passes,
             result?.Requests,
             ToMilliseconds(totalDuration));

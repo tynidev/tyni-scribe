@@ -41,6 +41,13 @@ public sealed class TranscriptSummaryService(
                 plannedMergePasses,
                 0,
                 0,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
                 passes,
                 requests);
         }
@@ -101,6 +108,10 @@ public sealed class TranscriptSummaryService(
         }
 
         var totalLlmMilliseconds = requests.Sum(metric => metric.Milliseconds);
+        var totalPromptTokens = SumNullable(requests.Select(metric => metric.PromptTokens));
+        var totalCompletionTokens = SumNullable(requests.Select(metric => metric.CompletionTokens));
+        var totalTokens = SumNullable(requests.Select(metric => metric.TotalTokens));
+        var estimatedOutputTokens = summaries.Sum(summary => EstimateTokens(summary, request.CharsPerToken));
         return new TranscriptSummaryResult(
             summaries[0],
             estimatedTranscriptTokens,
@@ -108,6 +119,13 @@ public sealed class TranscriptSummaryService(
             mergePassIndex,
             requests.Count,
             totalLlmMilliseconds,
+            totalPromptTokens,
+            totalCompletionTokens,
+            totalTokens,
+            estimatedOutputTokens,
+            CalculateTokensPerSecond(totalPromptTokens, totalLlmMilliseconds),
+            CalculateTokensPerSecond(totalCompletionTokens, totalLlmMilliseconds),
+            CalculateTokensPerSecond(totalTokens, totalLlmMilliseconds),
             passes,
             requests);
     }
@@ -141,8 +159,15 @@ public sealed class TranscriptSummaryService(
             chunkIndex,
             stage,
             EstimateTokens(text, request.CharsPerToken),
+            EstimateTokens(result.Text, request.CharsPerToken),
             result.Text.Length,
-            ToMilliseconds(stopwatch.Elapsed)));
+            ToMilliseconds(stopwatch.Elapsed),
+            result.Usage?.PromptTokens,
+            result.Usage?.CompletionTokens,
+            result.Usage?.TotalTokens,
+            CalculateTokensPerSecond(result.Usage?.PromptTokens, ToMilliseconds(stopwatch.Elapsed)),
+            CalculateTokensPerSecond(result.Usage?.CompletionTokens, ToMilliseconds(stopwatch.Elapsed)),
+            CalculateTokensPerSecond(result.Usage?.TotalTokens, ToMilliseconds(stopwatch.Elapsed))));
 
         return result.Text;
     }
@@ -251,6 +276,34 @@ public sealed class TranscriptSummaryService(
         }
 
         return passes;
+    }
+
+    private static int? SumNullable(IEnumerable<int?> values)
+    {
+        var total = 0;
+        var hasValue = false;
+        foreach (var value in values)
+        {
+            if (!value.HasValue)
+            {
+                continue;
+            }
+
+            total += value.Value;
+            hasValue = true;
+        }
+
+        return hasValue ? total : null;
+    }
+
+    private static double? CalculateTokensPerSecond(int? tokens, long milliseconds)
+    {
+        if (!tokens.HasValue || milliseconds <= 0)
+        {
+            return null;
+        }
+
+        return Math.Round(tokens.Value / (milliseconds / 1000d), 3, MidpointRounding.AwayFromZero);
     }
 
     private static string CreateChunkPrompt(string basePrompt, int chunkIndex, int chunkCount, TranscriptDocument transcript)

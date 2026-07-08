@@ -9,5 +9,5 @@ public static class TranscriptSummaryDefaults
     public const int ReservedOutputTokens = 1024;
     public const int MaxOutputTokens = 2048;
     public const double CharsPerToken = 3.0;
-    public const int TimeoutSeconds = 120;
+    public const int TimeoutSeconds = 600;
 }

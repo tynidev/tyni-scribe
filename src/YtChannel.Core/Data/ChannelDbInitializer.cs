@@ -77,6 +77,13 @@ public static class ChannelDbInitializer
                 LlmRequestCount           INTEGER,
                 TotalDurationMs           INTEGER,
                 TotalLlmDurationMs        INTEGER,
+                TotalPromptTokens         INTEGER,
+                TotalCompletionTokens     INTEGER,
+                TotalTokens               INTEGER,
+                EstimatedOutputTokens     INTEGER,
+                PromptTokensPerSecond     REAL,
+                CompletionTokensPerSecond REAL,
+                TotalTokensPerSecond      REAL,
                 SummarizedAt              TEXT,
                 ErrorCategory             TEXT,
                 ErrorMessage              TEXT
@@ -114,6 +121,13 @@ public static class ChannelDbInitializer
         await AddMissingColumnAsync(connection, "Channels", "LastScanCompletedAt", "TEXT", cancellationToken);
         await AddMissingColumnAsync(connection, "Channels", "NextScanAfter", "TEXT", cancellationToken);
         await AddMissingColumnAsync(connection, "Channels", "ScanStatus", "TEXT NOT NULL DEFAULT 'pending'", cancellationToken);
+        await AddMissingColumnAsync(connection, "Summaries", "TotalPromptTokens", "INTEGER", cancellationToken);
+        await AddMissingColumnAsync(connection, "Summaries", "TotalCompletionTokens", "INTEGER", cancellationToken);
+        await AddMissingColumnAsync(connection, "Summaries", "TotalTokens", "INTEGER", cancellationToken);
+        await AddMissingColumnAsync(connection, "Summaries", "EstimatedOutputTokens", "INTEGER", cancellationToken);
+        await AddMissingColumnAsync(connection, "Summaries", "PromptTokensPerSecond", "REAL", cancellationToken);
+        await AddMissingColumnAsync(connection, "Summaries", "CompletionTokensPerSecond", "REAL", cancellationToken);
+        await AddMissingColumnAsync(connection, "Summaries", "TotalTokensPerSecond", "REAL", cancellationToken);
     }
 
     private static async Task AddMissingColumnAsync(

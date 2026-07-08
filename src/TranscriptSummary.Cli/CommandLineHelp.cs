@@ -18,7 +18,7 @@ internal static class CommandLineHelp
         writer.WriteLine("  --max-output-tokens <value>       max_tokens sent to the endpoint. Defaults to 2048.");
         writer.WriteLine("  --chars-per-token <value>         Token estimate ratio. Defaults to 3.0.");
         writer.WriteLine("  --mode <hierarchical|single-pass> Summarization mode. Defaults to hierarchical.");
-        writer.WriteLine("  --timeout-seconds <value>         Timeout per LLM request. Defaults to 120.");
+        writer.WriteLine("  --timeout-seconds <value>         Timeout per LLM request. Defaults to 600.");
         writer.WriteLine("  --metrics-output <path>           Write machine-readable timing/status JSON.");
         writer.WriteLine("  --estimate-only                   Plan chunks and merges without calling the model.");
         writer.WriteLine("  --help                            Show help.");

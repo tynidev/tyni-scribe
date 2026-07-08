@@ -102,6 +102,13 @@ public sealed class SummaryRecord
     public int? LlmRequestCount { get; set; }
     public long? TotalDurationMs { get; set; }
     public long? TotalLlmDurationMs { get; set; }
+    public int? TotalPromptTokens { get; set; }
+    public int? TotalCompletionTokens { get; set; }
+    public int? TotalTokens { get; set; }
+    public int? EstimatedOutputTokens { get; set; }
+    public double? PromptTokensPerSecond { get; set; }
+    public double? CompletionTokensPerSecond { get; set; }
+    public double? TotalTokensPerSecond { get; set; }
     public DateTimeOffset? SummarizedAt { get; set; }
     public string? ErrorCategory { get; set; }
     public string? ErrorMessage { get; set; }
